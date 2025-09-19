@@ -1,0 +1,100 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  
+  --bg: #F5F6FA;          
+  --surface: #FFFFFF;          
+  --muted-surface: #F2F3F7;     
+  --text: #1F2937;            
+  --muted-text: #6B7280;        
+
+
+  --border: #E6E9F2;
+  --shadow: 0 8px 20px rgba(22,24,29,0.06);
+
+
+  --accent: #4A6FA5;        
+  --accent-hover: #3A5A8C;    
+  --accent-on: #FFFFFF;      
+
+  --success: #9AD7B8;
+  --danger: #FF9B9B;
+
+  /* layout sizes */
+  --radius: 12px;
+  --radius-sm: 8px;
+  --gap: 16px;
+  --transition: 180ms cubic-bezier(.2,.9,.3,1);
+  --hover-overlay: rgba(0, 0, 0, 0.05);
+  
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+}
+
+
+.dark, [data-theme="dark"] {
+  --bg: #0E1114;
+  --surface: #121417;
+  --muted-surface: #16181A;
+  --text: #E6EEF8;
+  --muted-text: #B7C1CE;
+  --border: #22262A;
+  --shadow: 0 6px 18px rgba(0,0,0,0.5);
+  --accent: #536DFE;
+  --accent-hover: #4558DB;
+  --accent-on: #FFFFFF;
+}
+
+/* Typography */
+body {
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--text);
+  background-color: var(--bg);
+  line-height: 1.45;
+  font-size: 15px;
+}
+
+h1, h2, h3, h4, h5, h6 { 
+  margin-top: 0; 
+  font-weight: 600; 
+  color: var(--text); 
+}
+
+:focus { 
+  outline: none; 
+  box-shadow: 0 0 0 4px rgba(74, 111, 165, 0.12); 
+  border-radius: var(--radius-sm); 
+}
+
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px); 
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Accessibility Helpers */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

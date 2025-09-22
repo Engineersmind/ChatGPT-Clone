@@ -153,7 +153,7 @@ export default function ChatArea({
     return () => {
       if (container) container.removeEventListener("scroll", handleScroll);
     };
-  }, []);
+  }, [messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -471,7 +471,31 @@ export default function ChatArea({
           </div>
 
           {/*  Down Arrow only if scrollable and NOT at bottom will be impalement */}
-
+{messages.length > 0 && isScrollable && showScrollDown && (
+            <motion.button
+              onClick={scrollToBottom}
+              className={`btn rounded-circle shadow ${darkMode ? "btn-light text-dark" : "btn-dark text-white"
+                }`}
+              style={{
+                position: "fixed",
+                bottom: "70px",
+                left: `calc(${sidebarCollapsed ? "60px" : "280px"} + (100% - ${sidebarCollapsed ? "60px" : "280px"
+                  })/2)`,
+                transform: "translateX(-50%)",
+                width: "40px",
+                height: "40px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 1000,
+              }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <ArrowDown size={20} />
+            </motion.button>
+          )}
 
 
 

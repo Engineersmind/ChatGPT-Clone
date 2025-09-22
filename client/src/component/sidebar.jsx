@@ -200,36 +200,11 @@ export default function Sidebar({
             >
               <Search size={16} />
             </button>
-            <button
-              className={`btn w-100 mb-3 rounded-3 d-flex justify-content-center ${darkMode ? 'text-white' : 'text-dark'}`}
-              style={{ background: 'none', border: 'none' }}
-              title="Library"
-            >
-              <Book size={16} />
-            </button>
+           
           </div>
         )}
 
-        {/* Navigation Links */}
-        {shouldShowFull && (
-          <div className="p-3 border-bottom">
-            <div className="d-flex flex-column gap-1">
-              <button style={navButtonStyle} className={darkMode ? 'text-white' : 'text-dark'} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
-                <Book size={16} /> Library
-              </button>
-              <button style={navButtonStyle} className={darkMode ? 'text-white' : 'text-dark'} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
-                <Zap size={16} /> AI Tools
-              </button>
-              <button style={navButtonStyle} className={darkMode ? 'text-white' : 'text-dark'} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
-                <Grid3X3 size={16} /> Templates
-              </button>
-              <button style={navButtonStyle} className={darkMode ? 'text-white' : 'text-dark'} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
-                <Folder size={16} /> Projects
-              </button>
-            </div>
-          </div>
-        )}
-
+        
         {/* Recent Chats */}
         {shouldShowFull && (
           <div className="flex-grow-1 d-flex flex-column p-3">

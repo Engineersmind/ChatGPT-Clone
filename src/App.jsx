@@ -7,7 +7,7 @@ function WelcomePage({ user, onLogout }) {
   return (
     <div style={{
         display: 'flex',
-        flexDirection: 'column',
+        flexDirection: 'column',          
         justifyContent: 'center',
         alignItems: 'center',
         height: '100vh',

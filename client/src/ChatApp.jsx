@@ -19,11 +19,13 @@ function nowTime() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export default function ChatApp({ user, onLogout }) {
+import { useNavigate } from 'react-router-dom';
+
+export default function ChatApp({ user, onLogout, initialShowSettings = false, initialShowUpgradePlan = false }) {
   const [darkMode, setDarkMode] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showUpgradePlan, setShowUpgradePlan] = useState(false);
+  const [showSettings, setShowSettings] = useState(initialShowSettings);
+  const [showUpgradePlan, setShowUpgradePlan] = useState(initialShowUpgradePlan);
   // const [currentPlan, setCurrentPlan] = useState("Free Plan");
 
   const PLAN_STORAGE_KEY = "current_plan";
@@ -69,9 +71,17 @@ export default function ChatApp({ user, onLogout }) {
   const [currentUser, setCurrentUser] = useState(user || { name: "User" });
   const isStreamingCancelled = useRef(false);
 
+  const navigate = useNavigate();
+
   useEffect(() => {
     if (user) setCurrentUser(user);
   }, [user]);
+
+  // Sync panel open state with URL paths (simple approach)
+  useEffect(() => {
+    if (initialShowSettings) setShowSettings(true);
+    if (initialShowUpgradePlan) setShowUpgradePlan(true);
+  }, [initialShowSettings, initialShowUpgradePlan]);
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -319,10 +329,11 @@ export default function ChatApp({ user, onLogout }) {
       {showUpgradePlan ? (
         <UpgradePlan
           darkMode={darkMode}
-          onClose={() => setShowUpgradePlan(false)}
+          onClose={() => { setShowUpgradePlan(false); navigate('/'); }}
           onUpgradeSuccess={() => {
             setShowUpgradePlan(false);
             setCurrentPlan("Pro");
+            navigate('/');
           }}
         />
       ) : (
@@ -337,11 +348,11 @@ export default function ChatApp({ user, onLogout }) {
             currentUser={currentUser}
             onSelectChat={handleSelectChat}
             activeChatId={activeChatId}
-            onSettings={() => setShowSettings(true)}
+            onSettings={() => { setShowSettings(true); navigate('/settings'); }}
             onRename={handleRenameChat}
             onDelete={handleDeleteChat}
             onArchive={handleArchiveChat}
-            onShowUpgradePlan={() => setShowUpgradePlan(true)}
+            onShowUpgradePlan={() => { setShowUpgradePlan(true); navigate('/upgrade'); }}
             currentPlan={currentPlan}
           />
           <ChatArea
@@ -362,7 +373,7 @@ export default function ChatApp({ user, onLogout }) {
             onRestoreChat={handleRestoreChat}
             onPermanentlyDeleteChat={handleDeleteChat}
             isOpen={showSettings}
-            onClose={() => setShowSettings(false)}
+            onClose={() => { setShowSettings(false); navigate('/'); }}
             theme={theme}
             setTheme={(t) => setTheme(t)}
           />

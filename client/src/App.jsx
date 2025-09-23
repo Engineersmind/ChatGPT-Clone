@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import ChatApp from './ChatApp';
 import AuthForm from './component/AuthForm';
+import RequireAuth from './routes/RequireAuth';
+import UpgradePlan from './component/UpgradePlan';
+
+// Lazy placeholder pages / wrappers
+const CheckoutPage = React.lazy(() => import('./component/CheckoutPage'));
 
 const USER_KEY = "chatapp_remember_user";
 
@@ -43,14 +49,59 @@ function App() {
     document.body.className = darkMode ? 'bg-dark text-white' : 'bg-light text-dark';
   }, [darkMode]);
 
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // After login redirect to original destination if present
+  useEffect(() => {
+    if (loggedIn && location.pathname === '/login') {
+      const from = location.state?.from || '/';
+      navigate(from, { replace: true });
+    }
+  }, [loggedIn, location.pathname]);
+
   return (
-    <>
-      {loggedIn ? (
-        <ChatApp user={currentUser} onLogout={handleLogout} />
-      ) : (
-        <AuthForm onLogin={handleLogin} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
-      )}
-    </>
+    <React.Suspense fallback={<div className="p-3">Loading...</div>}>
+      <Routes>
+        <Route
+          path="/login"
+          element={<AuthForm onLogin={handleLogin} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />}
+        />
+        <Route
+          path="/"
+          element={
+            <RequireAuth>
+              <ChatApp user={currentUser} onLogout={handleLogout} />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <RequireAuth>
+              <ChatApp user={currentUser} onLogout={handleLogout} initialShowSettings />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/upgrade"
+          element={
+            <RequireAuth>
+              <ChatApp user={currentUser} onLogout={handleLogout} initialShowUpgradePlan />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/checkout"
+          element={
+            <RequireAuth>
+              <CheckoutPage />
+            </RequireAuth>
+          }
+        />
+        <Route path="*" element={<Navigate to={loggedIn ? '/' : '/login'} replace />} />
+      </Routes>
+    </React.Suspense>
   );
 }
 

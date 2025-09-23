@@ -254,18 +254,43 @@ export default function ChatArea({
             justifyContent: "center",
             alignItems: "center",
             width: "100%",
+            padding: '0 16px',
           }}
         >
           <div
             style={{
               display: "flex",
+              flexDirection: 'column',
+              gap: 16,
               width: "70%",
               minWidth: 300,
-              maxWidth: 800,
+              maxWidth: 760,
               justifyContent: "center",
+              alignItems: 'center',
             }}
           >
-            <div className="d-flex gap-2 align-items-center w-100" style={{ position: 'relative' }}>
+            <div style={{ textAlign: 'center', maxWidth: 560 }}>
+              <h1 style={{
+                fontSize: '1.9rem',
+                margin: 0,
+                fontWeight: 600,
+                background: 'linear-gradient(90deg,#3b82f6,#8b5cf6)',
+                WebkitBackgroundClip: 'text',
+                color: 'transparent'
+              }}>
+                Hello, how can I help you?
+              </h1>
+              <p style={{
+                marginTop: 10,
+                marginBottom: 0,
+                fontSize: 15,
+                lineHeight: 1.5,
+                color: darkMode ? '#a1a1aa' : '#4b5563'
+              }}>
+                Ask me anything – debugging code, generating ideas, refining prompts, or exploring a new topic. Just start typing below.
+              </p>
+            </div>
+            <div className="d-flex gap-2 align-items-center w-100" style={{ position: 'relative', maxWidth: 760 }}>
               <div style={{ position: 'relative', flex: 1 }}>
                 <input
                   key={(activeChatId || 'new') + '-top'}

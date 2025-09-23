@@ -17,6 +17,8 @@ function titleFromText(text) {
   return title.charAt(0).toUpperCase() + title.slice(1);
 }
 
+const MAX_TITLE_LENGTH = 15; // constraint for chat titles
+
 function nowTime() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
@@ -138,12 +140,22 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
   const currentMessages = currentChat ? currentChat.messages || [] : [];
 
   const handleRenameChat = (chatId, newTitle) => {
-    setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, title: newTitle } : c)));
+    if (!newTitle) return;
+    const trimmed = newTitle.trim().slice(0, MAX_TITLE_LENGTH);
+    if (!trimmed) return;
+    setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, title: trimmed } : c)));
   };
 
   const handleDeleteChat = (chatId) => {
     setChats((prev) => prev.filter((c) => c.id !== chatId));
-    if (activeChatId === chatId) setActiveChatId(null);
+    if (activeChatId === chatId) {
+      setActiveChatId(null);
+      // Clear chatId from URL when deleting currently active chat
+      const params = new URLSearchParams(window.location.search);
+      params.delete("chatId");
+      const query = params.toString();
+      window.history.replaceState(null, "", query ? `${window.location.pathname}?${query}` : window.location.pathname);
+    }
   };
 
   const handleArchiveChat = (chatId) => {
@@ -161,8 +173,15 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
   };
 
   const handleNewChat = () => {
+    // Starting a fresh new chat (no messages yet) -> clear chatId param so refresh doesn't resurrect old chat
     setActiveChatId(null);
     setInput("");
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("chatId")) {
+      params.delete("chatId");
+      const query = params.toString();
+      window.history.replaceState(null, "", query ? `${window.location.pathname}?${query}` : window.location.pathname);
+    }
   };
 
   const handleSelectChat = (chatId) => {
@@ -358,6 +377,7 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
             onShowUpgradePlan={() => { setShowUpgradePlan(true); navigate('/upgrade'); }}
             onHelp={() => { setShowHelp(true); navigate('/help'); }}
             currentPlan={currentPlan}
+
           />
           <ChatArea
             darkMode={darkMode}
@@ -371,6 +391,8 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
             isLoading={isLoading}
             onCancelStream={handleCancelStream}
             chatTitle={currentChat?.title}
+            activeChatId={activeChatId}
+            onNewChat={handleNewChat}
           />
           <SettingsPanel
             chats={chats}

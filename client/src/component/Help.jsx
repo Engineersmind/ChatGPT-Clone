@@ -26,7 +26,7 @@ export default function HelpModal({ darkMode, isOpen, onClose }) {
       >
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h5 className="mb-0">Help & Support</h5>
-          <button className="btn btn-sm btn-outline-secondary" onClick={onClose}>×</button>
+          {/* <button className="btn btn-sm btn-outline-secondary" onClick={onClose}>×</button> */}
         </div>
         <p className="mb-2">Welcome to QuantumChat! Here's a quick guide:</p>
         <ul className="small mb-3">
@@ -36,8 +36,16 @@ export default function HelpModal({ darkMode, isOpen, onClose }) {
           <li>Upgrade your plan anytime via the <strong>Upgrade</strong> option.</li>
           <li>Need to resume where you left? Login persistence uses your local browser storage.</li>
         </ul>
-        <p className="small text-muted mb-1">Support: <a href="mailto:support@quantumchat.com">support@quantumchat.com</a></p>
-        <p className="small text-muted">Version: 1.0.0</p>
+        <p
+          className={`small mb-1 ${darkMode ? 'text-white-50' : 'text-black-50'}`}
+        >
+          Support: <a href="mailto:support@quantumchat.com">support@quantumchat.com</a>
+        </p>
+        <p
+          className={`small ${darkMode ? 'text-white-50' : 'text-black-50'}`}
+        >
+          Version: 1.0.0
+        </p>
         <div className="text-end">
           <button onClick={onClose} className="btn btn-primary btn-sm">Close</button>
         </div>

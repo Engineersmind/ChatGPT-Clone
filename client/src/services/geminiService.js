@@ -50,11 +50,10 @@ export async function generateGeminiStreamResponse(prompt, conversationHistory =
           if (onChunk) onChunk(txt, false);
         }
       }
-      // mark complete
-      if (onChunk) onChunk(null, true);
-      // do a final validate step if needed
-      const finalResponse = await result.response;
-      return full.trim();
+  // mark complete
+  if (onChunk) onChunk(null, true);
+  // final response awaited previously solely to avoid unhandled promise; not needed for current usage
+  return full.trim();
     } catch (streamErr) {
       if (onChunk) onChunk(null, true, streamErr.message || "Stream interrupted");
       if (full.trim()) return full.trim();

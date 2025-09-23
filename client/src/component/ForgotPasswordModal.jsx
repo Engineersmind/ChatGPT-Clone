@@ -10,10 +10,51 @@ export default function ForgotPasswordModal({ darkMode, onClose }) {
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
  
-  const handleSubmit = (e) => {
+   const handleSubmit = (e) => {
     e.preventDefault();
-    alert('This feature is currently disabled.');
-    return;
+    setError('');
+    setSuccess('');
+ 
+    if (!email) {
+      setError('Please enter your email address.');
+      return;
+    }
+    setIsLoading(true);
+ 
+    // To prevent security issues (user enumeration), we show a generic success message
+    // whether the email exists or not. We only send the email if the user is found.
+    const users = JSON.parse(localStorage.getItem('chatapp_users')) || [];
+    const foundUser = users.find(user => user.email === email);
+ 
+    if (foundUser) {
+      // User exists, so we proceed to send the email
+      const templateParams = {
+        username: foundUser.username,
+        to_email: foundUser.email,
+      };
+ 
+      const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+      const templateId = import.meta.env.VITE_EMAILJS_FORGOT_PASSWORD_TEMPLATE_ID;
+      const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+ 
+      emailjs.send(serviceId, templateId, templateParams, publicKey)
+        .then(() => {
+          setSuccess('If an account with that email exists, a password reset link has been sent.');
+          setIsLoading(false);
+        })
+        .catch((err) => {
+          console.error('EmailJS Error:', err);
+          // Still show success to the user, but log the error for debugging
+          setSuccess('If an account with that email exists, a password reset link has been sent.');
+          setIsLoading(false);
+        });
+    } else {
+      // User does not exist, but we simulate a network delay and show the same message
+      setTimeout(() => {
+        setSuccess('If an account with that email exists, a password reset link has been sent.');
+        setIsLoading(false);
+      }, 1500);
+    }
   };
  
   return (

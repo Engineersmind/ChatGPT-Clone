@@ -4,6 +4,8 @@ import ChatArea from "./component/ChatArea";
 import SettingsPanel from "./component/SettingsPanel/SettingsPanel";
 import { generateGeminiStreamResponse, isGeminiConfigured } from "./services/geminiService";
 import UpgradePlan from "./component/UpgradePlan";
+import HelpModal from "./component/Help";
+import { useNavigate } from 'react-router-dom';
 
 const STORAGE_KEY = "chat_history_v1";
 
@@ -19,13 +21,13 @@ function nowTime() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-import { useNavigate } from 'react-router-dom';
 
-export default function ChatApp({ user, onLogout, initialShowSettings = false, initialShowUpgradePlan = false }) {
+export default function ChatApp({ user, onLogout, initialShowSettings = false, initialShowUpgradePlan = false, initialShowHelp = false }) {
   const [darkMode, setDarkMode] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showSettings, setShowSettings] = useState(initialShowSettings);
   const [showUpgradePlan, setShowUpgradePlan] = useState(initialShowUpgradePlan);
+  const [showHelp, setShowHelp] = useState(initialShowHelp);
   // const [currentPlan, setCurrentPlan] = useState("Free Plan");
 
   const PLAN_STORAGE_KEY = "current_plan";
@@ -81,7 +83,8 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
   useEffect(() => {
     if (initialShowSettings) setShowSettings(true);
     if (initialShowUpgradePlan) setShowUpgradePlan(true);
-  }, [initialShowSettings, initialShowUpgradePlan]);
+    if (initialShowHelp) setShowHelp(true);
+  }, [initialShowSettings, initialShowUpgradePlan, initialShowHelp]);
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -353,6 +356,7 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
             onDelete={handleDeleteChat}
             onArchive={handleArchiveChat}
             onShowUpgradePlan={() => { setShowUpgradePlan(true); navigate('/upgrade'); }}
+            onHelp={() => { setShowHelp(true); navigate('/help'); }}
             currentPlan={currentPlan}
           />
           <ChatArea
@@ -376,6 +380,11 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
             onClose={() => { setShowSettings(false); navigate('/'); }}
             theme={theme}
             setTheme={(t) => setTheme(t)}
+          />
+          <HelpModal
+            darkMode={darkMode}
+            isOpen={showHelp}
+            onClose={() => { setShowHelp(false); navigate('/'); }}
           />
         </>
       )}

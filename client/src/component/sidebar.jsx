@@ -33,6 +33,7 @@ export default function Sidebar({
   onArchive,
   onDelete,
   onShowUpgradePlan,
+  onHelp,
   currentPlan
 }) {
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -412,7 +413,14 @@ export default function Sidebar({
                   >
                     <Settings size={14} className="me-2" /> Settings
                   </button>
-                  <button className={`btn w-100 text-start mb-1 ${darkMode ? 'text-white' : 'text-dark'}`} style={{ background: 'none', border: 'none' }}>
+                  <button
+                    className={`btn w-100 text-start mb-1 ${darkMode ? 'text-white' : 'text-dark'}`}
+                    style={{ background: 'none', border: 'none' }}
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      onHelp && onHelp();
+                    }}
+                  >
                     <HelpCircle size={14} className="me-2" /> Help
                   </button>
                   <button
@@ -473,7 +481,14 @@ export default function Sidebar({
                   >
                     <Settings size={14} className="me-2" /> Settings
                   </button>
-                  <button className={`btn w-100 text-start mb-1 ${darkMode ? 'text-white' : 'text-dark'}`} style={{ background: 'none', border: 'none' }}>
+                  <button
+                    className={`btn w-100 text-start mb-1 ${darkMode ? 'text-white' : 'text-dark'}`}
+                    style={{ background: 'none', border: 'none' }}
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      onHelp && onHelp();
+                    }}
+                  >
                     <HelpCircle size={14} className="me-2" /> Help
                   </button>
                   <button onClick={onLogout} className="btn btn-outline-danger w-100 text-start" style={{ border: 'none' }}>

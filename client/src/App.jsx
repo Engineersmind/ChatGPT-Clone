@@ -92,6 +92,14 @@ function App() {
           }
         />
         <Route
+          path="/help"
+          element={
+            <RequireAuth>
+              <ChatApp user={currentUser} onLogout={handleLogout} initialShowHelp />
+            </RequireAuth>
+          }
+        />
+        <Route
           path="/checkout"
           element={
             <RequireAuth>

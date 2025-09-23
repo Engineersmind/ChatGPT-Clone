@@ -13,7 +13,7 @@ export default function RequireAuth({ children }) {
       const parsed = JSON.parse(stored);
       isAuthed = !!parsed?.id;
     }
-  } catch (e) {
+  } catch {
     isAuthed = false;
   }
 

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
 import {
   Send,
   Sun,
@@ -28,6 +27,8 @@ export default function ChatArea({
   isLoading = false,
   onCancelStream,
   chatTitle,
+  activeChatId, // optional prop; if not provided overlay still works
+  onNewChat,
 }) {
   const [copiedStates, setCopiedStates] = useState({});
   const [likedStates, setLikedStates] = useState({});
@@ -191,10 +192,11 @@ export default function ChatArea({
               <img
                 src={gptIcon}
                 alt="ChatClone Logo"
-                style={{ width: "24px", height: "24px" }}
+                onClick={onNewChat}
+                style={{ width: "24px", height: "24px" , cursor: 'pointer'}}
               />
               <h2
-                className="h5 fw-bold mb-0 gradient-text"
+                className="h5 fw-bold mb-0 text-success"
                 style={{ marginLeft: 8 }}
               >
                 QuantumChat
@@ -263,24 +265,40 @@ export default function ChatArea({
               justifyContent: "center",
             }}
           >
-            <div className="d-flex gap-2 align-items-center w-100">
-              <input
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !isLoading) {
-                    if (message.trim()) {
-                      onSendMessage(message);
+            <div className="d-flex gap-2 align-items-center w-100" style={{ position: 'relative' }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <input
+                  key={(activeChatId || 'new') + '-top'}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !isLoading) {
+                      if (message.trim()) {
+                        onSendMessage(message);
+                      }
                     }
-                  }
-                }}
-                placeholder="Type your message..."
-                disabled={isLoading}
-                className={`form-control rounded-3 ${darkMode ? "bg-dark text-white border-secondary" : ""
-                  }`}
-                style={{ width: "100%" }}
-                autoFocus
-              />
+                  }}
+                  disabled={isLoading}
+                  className={`form-control rounded-3 ${darkMode ? "bg-dark text-white border-secondary" : ""}`}
+                  style={{ width: "100%", paddingLeft: 12, caretColor: darkMode ? '#fff' : '#111' }}
+                  autoFocus
+                  autoComplete="off"
+                />
+                {!message && !isLoading && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      left: 18,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      pointerEvents: 'none',
+                      color: darkMode ? '#9ca3af' : '#6b7280',
+                      fontSize: 14,
+                      userSelect: 'none'
+                    }}
+                  >Type your message...</span>
+                )}
+              </div>
               <button
                 onClick={() => {
                   if (!isLoading && message.trim()) onSendMessage(message);
@@ -313,23 +331,29 @@ export default function ChatArea({
               const isAssistant = msg.role !== "user";
               const suggested = isAssistant ? msg.suggested || [] : [];
               return (
-                <motion.div
+                <div
                   key={i}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
                   className={`p-3 rounded-4 shadow-sm mb-3 ${msg.role === "user"
-                    ? "ms-auto text-white"
+                    ? "ms-auto"
                     : msg.isError
                       ? "bg-danger bg-opacity-10 border border-danger"
-                      : darkMode
-                        ? "bg-dark text-white border border-secondary"
-                        : "bg-light"
+                      : ""
                     }`}
                   style={{
                     maxWidth: "80%",
-                    background: darkMode ? "#666" : "#8e9296ff",
-                    color: darkMode ? "#d42d2dff" : "#164048",
+                    background: msg.isError
+                      ? (darkMode ? 'rgba(239,68,68,0.12)' : 'rgba(239,68,68,0.08)')
+                      : msg.role === 'user'
+                        ? (darkMode ? '#2d3b46' : '#ffffff')
+                        : (darkMode ? '#232b33' : '#f5f7fa'),
+                    color: darkMode ? (msg.role === 'user' ? '#f1f5f9' : '#e2e8f0') : '#1f2937',
+                    border: '1px solid',
+                    borderColor: msg.isError
+                      ? (darkMode ? '#b91c1c' : '#ef4444')
+                      : msg.role === 'user'
+                        ? (darkMode ? '#3c4954' : '#e2e8f0')
+                        : (darkMode ? '#313c46' : '#e3e8ee'),
+                    boxShadow: darkMode ? '0 1px 2px rgba(0,0,0,0.4)' : '0 1px 2px rgba(0,0,0,0.08)'
                   }}
                 >
                   <div className="fw-medium">
@@ -366,14 +390,8 @@ export default function ChatArea({
                     {msg.isStreaming && <span className="typing-cursor">|</span>}
                   </div>
                   <div
-                    className={`small mt-1 ${msg.role === "user"
-                      ? "text-white-50"
-                      : msg.isError
-                        ? "text-danger"
-                        : darkMode
-                          ? "text-light opacity-75"
-                          : "text-muted"
-                      }`}
+                    className={`small mt-1 ${darkMode ? 'text-white-50' : 'text-black-50'}`}
+                    style={{ letterSpacing: '.25px', opacity: 0.8 }}
                   >
                     {msg.time}
                     {msg.isError ? " • Error" : ""}
@@ -437,7 +455,7 @@ export default function ChatArea({
 
                     </div>
                   )}
-                  {msg.role === "user" && editingMsgId !== msgId && (
+                  {/* {msg.role === "user" && editingMsgId !== msgId && (
                     <div className="d-flex mt-2">
                       <button
                         onClick={() => {
@@ -450,7 +468,7 @@ export default function ChatArea({
                         <Edit3 size={14} /> Edit
                       </button>
                     </div>
-                  )}
+                  )} */}
                   {isAssistant && suggested.length > 0 && (
                     <div className="d-flex gap-2 mt-2 flex-wrap">
                       {suggested.map((s, idx) => (
@@ -464,7 +482,7 @@ export default function ChatArea({
                       ))}
                     </div>
                   )}
-                </motion.div>
+                </div>
               );
             })}
             <div ref={messagesEndRef} />
@@ -472,7 +490,7 @@ export default function ChatArea({
 
           {/*  Down Arrow only if scrollable and NOT at bottom will be impalement */}
 {messages.length > 0 && isScrollable && showScrollDown && (
-            <motion.button
+            <button
               onClick={scrollToBottom}
               className={`btn rounded-circle shadow ${darkMode ? "btn-light text-dark" : "btn-dark text-white"
                 }`}
@@ -489,12 +507,9 @@ export default function ChatArea({
                 justifyContent: "center",
                 zIndex: 1000,
               }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
             >
               <ArrowDown size={20} />
-            </motion.button>
+            </button>
           )}
 
 
@@ -509,24 +524,40 @@ export default function ChatArea({
             }}
           >
             <div style={{ width: "70%", minWidth: 300, maxWidth: 800 }}>
-              <div className="d-flex gap-2 align-items-center">
-                <input
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !isLoading) {
-                      if (message.trim()) {
-                        onSendMessage(message);
+              <div className="d-flex gap-2 align-items-center" style={{ position: 'relative', flex: 1 }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <input
+                    key={(activeChatId || 'new') + '-bottom'}
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !isLoading) {
+                        if (message.trim()) {
+                          onSendMessage(message);
+                        }
                       }
-                    }
-                  }}
-                  placeholder="Type your message..."
-                  disabled={isLoading}
-                  className={`form-control rounded-3 ${darkMode ? "bg-dark text-white border-secondary" : ""
-                    }`}
-                  style={{ width: "100%" }}
-                  autoFocus
-                />
+                    }}
+                    disabled={isLoading}
+                    className={`form-control rounded-3 ${darkMode ? "bg-dark text-white border-secondary" : ""}`}
+                    style={{ width: "100%", paddingLeft: 12, caretColor: darkMode ? '#fff' : '#111' }}
+                    autoFocus
+                    autoComplete="off"
+                  />
+                  {!message && !isLoading && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        left: 18,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        pointerEvents: 'none',
+                        color: darkMode ? '#9ca3af' : '#6b7280',
+                        fontSize: 14,
+                        userSelect: 'none'
+                      }}
+                    >Type your message...</span>
+                  )}
+                </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   {isLoading ? (
                     <>

@@ -7,6 +7,7 @@ export default function ChatActionsDropdown({
   chat,
   darkMode,
   onRename,
+  onRequestRename,
   onArchive,
   onDelete,
   openDropdownChatId,
@@ -15,9 +16,7 @@ export default function ChatActionsDropdown({
   const [hoveredBtn, setHoveredBtn] = useState(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, direction: "down" });
   const btnRef = useRef(null);
-  // --- inline rename state
-  const [isRenaming, setIsRenaming] = useState(false);
-  const [renameValue, setRenameValue] = useState(chat.title || "");
+  // inline rename handled by parent sidebar now
   const showDropdown = openDropdownChatId === chat.id;
   const handleToggleDropdown = (e) => {
     e.stopPropagation();
@@ -167,46 +166,17 @@ export default function ChatActionsDropdown({
       >
         Copy Link
       </button>
-      {/* --- inline rename --- */}
-      {isRenaming ? (
-        <div style={{ padding: "5px" }}>
-          <input
-            type="text"
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                if (renameValue.trim()) onRename(chat.id, renameValue.trim());
-                setIsRenaming(false);
-                handleCloseDropdown();
-              }
-              if (e.key === "Escape") {
-                setIsRenaming(false);
-                setRenameValue(chat.title || "");
-              }
-            }}
-            autoFocus
-            style={{
-              width: "100%",
-              padding: "4px",
-              borderRadius: "4px",
-              border: "1px solid #ccc"
-            }}
-          />
-        </div>
-      ) : (
-        <button
-          style={buttonStyle("rename")}
-          onMouseEnter={() => setHoveredBtn("rename")}
-          onMouseLeave={() => setHoveredBtn(null)}
-          onClick={() => {
-            setIsRenaming(true);
-            setRenameValue(chat.title || "");
-          }}
-        >
-          Rename
-        </button>
-      )}
+      <button
+        style={buttonStyle("rename")}
+        onMouseEnter={() => setHoveredBtn("rename")}
+        onMouseLeave={() => setHoveredBtn(null)}
+        onClick={() => {
+          onRequestRename && onRequestRename();
+          handleCloseDropdown();
+        }}
+      >
+        Rename
+      </button>
       <button
         style={buttonStyle("archive")}
         onMouseEnter={() => setHoveredBtn("archive")}

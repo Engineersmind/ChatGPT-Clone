@@ -5,7 +5,7 @@ import AuthForm from './component/AuthForm';
 import RequireAuth from './routes/RequireAuth';
 import UpgradePlan from './component/UpgradePlan';
 
-// Lazy placeholder pages / wrappers
+
 const CheckoutPage = React.lazy(() => import('./component/CheckoutPage'));
 
 const USER_KEY = "chatapp_remember_user";

@@ -34,8 +34,7 @@ exports.generateGeminiResponse = async (req, res) => {
 	}
 
 	const model = req.body?.model || DEFAULT_MODEL;
-	const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
-
+	const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 	const payload = {
 		contents: buildContents(prompt, history),
 		generationConfig: {
@@ -51,6 +50,7 @@ exports.generateGeminiResponse = async (req, res) => {
 		const response = await axios.post(url, payload, {
 			headers: {
 				'Content-Type': 'application/json',
+				'x-goog-api-key': GEMINI_API_KEY,
 			},
 			timeout: 20000,
 		});

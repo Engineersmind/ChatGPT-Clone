@@ -43,4 +43,7 @@ export const updateChat = async (chatId, updates = {}) => {
   return response.data;
 };
 
-export const deleteChat = (chatId) => apiClient.delete(`/api/chats/${chatId}`);
+export const deleteChat = async (chatId) => {
+  const response = await apiClient.delete(`/api/chats/${chatId}`);
+  return response.data;
+};

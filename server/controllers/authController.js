@@ -1,6 +1,10 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+
 const TOKEN_EXPIRY_DAYS = 30;
 
 const generateToken = (userId) =>

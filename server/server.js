@@ -25,16 +25,16 @@ const allowedOrigins = (process.env.CLIENT_ORIGINS || process.env.CLIENT_ORIGIN 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
+      // Allow requests with no origin (e.g., mobile apps, Postman) only in development
+      if (!origin && process.env.NODE_ENV !== 'production') return callback(null, true);
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
-      return callback(new Error(`Origin ${origin} not allowed by CORS`));
+      return callback(new Error('Origin not allowed by CORS'));
     },
     credentials: true,
   })
 );
-
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
 });

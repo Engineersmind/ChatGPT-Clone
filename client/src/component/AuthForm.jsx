@@ -39,7 +39,7 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
     }
   }, []);
 
-  // --- NEW useEffect for persistent login ---
+  
   useEffect(() => {
     const rememberedUser = localStorage.getItem('chatapp_remember_user');
     if (rememberedUser) {

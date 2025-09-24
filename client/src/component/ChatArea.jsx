@@ -235,8 +235,24 @@ export default function ChatArea({
         >
           <button
             onClick={toggleDarkMode}
-            className={`btn rounded-3 ${darkMode ? "btn-outline-light" : "btn-outline-secondary"
-              }`}
+            className="btn border-0"
+            style={{
+              padding: '8px 12px',
+              backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+              color: darkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.5)',
+              borderRadius: '8px',
+              transition: 'all 0.2s ease-in-out',
+              border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)'}`,
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = darkMode ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.06)';
+              e.target.style.color = darkMode ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.7)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)';
+              e.target.style.color = darkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.5)';
+            }}
+            title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
           >
             {darkMode ? <Sun size={18} /> : <Moon size={18} />}
           </button>

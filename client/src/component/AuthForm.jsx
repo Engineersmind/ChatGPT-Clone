@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence, motion as Motion } from 'framer-motion';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Sun, Moon } from 'lucide-react';
 import { useGoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
 import emailjs from '@emailjs/browser';
@@ -10,9 +10,6 @@ import ForgotPasswordModal from './ForgotPasswordModal';
 import ResetPasswordModal from './ResetPasswordModal';
 import { registerUser as apiRegisterUser, loginUser as apiLoginUser } from '../services/authService';
 
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
 export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
 
   const [isLoginView, setIsLoginView] = useState(true);
@@ -20,7 +17,6 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  // REMOVED: `rememberMe` is no longer needed as sessions are handled by the backend cookie.
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -30,13 +26,22 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetInfo, setResetInfo] = useState({ show: false, email: null, token: null });
 
-
-  const [theme, setTheme] = useState(darkMode ? "dark" : "light");
-  const [emailValid, setEmailValid] = useState(null);
-  const [usernameValid, setUsernameValid] = useState(null);
+  const persistRememberedEmail = (nextEmail) => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (nextEmail) {
+        localStorage.setItem('chatapp_remember_user', JSON.stringify({ email: nextEmail }));
+      } else {
+        localStorage.removeItem('chatapp_remember_user');
+      }
+    } catch (storageError) {
+      console.error('Failed to persist remembered login email:', storageError);
+    }
+  };
 
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
     const emailParam = params.get('email');
     const tokenParam = params.get('reset_token');
@@ -53,8 +58,23 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
 
 
   useEffect(() => {
-    document.body.className = darkMode ? "bg-dark text-white" : "bg-light text-dark";
-  }, [darkMode]);
+    if (typeof window === 'undefined') return;
+    try {
+      const storedLogin = localStorage.getItem('chatapp_remember_user');
+      if (storedLogin) {
+        const parsed = JSON.parse(storedLogin);
+        if (parsed?.email) {
+          setEmail(parsed.email);
+        }
+      }
+    } catch (storageError) {
+      console.error('Failed to load remembered login email:', storageError);
+      localStorage.removeItem('chatapp_remember_user');
+    }
+  }, []);
+
+
+
 
   const handleResetComplete = () => {
     window.location.href = "/";
@@ -125,12 +145,8 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
       });
 
       const loggedInUser = response.data?.user;
-
-      if (rememberMe && loggedInUser?.email) {
-        localStorage.setItem('chatapp_remember_user', JSON.stringify({ email: loggedInUser.email }));
-      } else {
-        localStorage.removeItem('chatapp_remember_user');
-      }
+      const rememberedEmail = loggedInUser?.email ?? email.trim();
+      persistRememberedEmail(rememberedEmail);
 
       setSuccess('✅ Login successful! Redirecting...');
       onLogin(loggedInUser || { email: email.trim() });
@@ -165,10 +181,7 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
           name: userProfile.name,
           provider: 'Google',
         };
-
-        if (rememberMe || !isLoginView) {
-          localStorage.setItem('chatapp_remember_user', JSON.stringify({ email: userToLogin.email }));
-        }
+        persistRememberedEmail(userToLogin.email);
 
         setSuccess(`✅ Welcome, ${userProfile.name || 'there'}!`);
 
@@ -197,7 +210,7 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
 
     const socialUser = { id: Date.now(), email: `user@${provider.toLowerCase()}.com`, username: `${provider} User`, provider };
 
-    localStorage.setItem('chatapp_remember_user', JSON.stringify({ email: socialUser.email }));
+  persistRememberedEmail(socialUser.email);
 
     setTimeout(() => { onLogin(socialUser); }, 800);
 
@@ -206,18 +219,7 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
   const switchView = (view) => {
     setIsLoginView(view === 'login');
     setError(''); setSuccess(''); setEmail(''); setUsername(''); setPassword('');
-
-    setAgreeTerms(false); setEmailValid(null); setUsernameValid(null);
-  };
-
-  const validateEmail = (email) => {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    setEmailValid(re.test(email));
-  };
-
-  const validateUsername = (username) => {
-    setUsernameValid(username.length >= 3 && /^[a-zA-Z0-9_]+$/.test(username));
-
+    setAgreeTerms(false);
   };
 
   useEffect(() => {
@@ -249,25 +251,72 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
 
   return (
     <>
-      <div className="d-flex align-items-center justify-content-center gradient-bg" style={{ minHeight: '100vh', padding: "20px", boxSizing: "border-box", overflow: 'hidden' }}>
+      {/* Floating Dark Mode Toggle */}
+      {typeof toggleDarkMode === 'function' && (
+        <button
+          onClick={toggleDarkMode}
+          className="btn border-0"
+          style={{
+            position: 'fixed',
+            top: '20px',
+            right: '20px',
+            zIndex: 9999,
+            padding: '10px',
+            backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+            color: darkMode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.6)',
+            borderRadius: '12px',
+            transition: 'all 0.2s ease-in-out',
+            backdropFilter: 'blur(10px)',
+            border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`,
+            boxShadow: darkMode ? 
+              '0 2px 8px rgba(0, 0, 0, 0.3)' : 
+              '0 2px 8px rgba(0, 0, 0, 0.1)'
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.backgroundColor = darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)';
+            e.target.style.color = darkMode ? 'rgba(255, 255, 255, 0.95)' : 'rgba(0, 0, 0, 0.8)';
+            e.target.style.transform = 'translateY(-1px)';
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.backgroundColor = darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)';
+            e.target.style.color = darkMode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.6)';
+            e.target.style.transform = 'translateY(0px)';
+          }}
+          title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+        >
+          {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+      )}
+      
+      <div 
+        className={`d-flex align-items-center justify-content-center ${darkMode ? 'bg-dark' : 'gradient-bg'}`} 
+        style={{ minHeight: '100vh', padding: "15px", boxSizing: "border-box", overflow: 'hidden' }}
+      >
         <div className="container-fluid">
-          <div className="row justify-content-center">
+          <div className="row justify-content-center align-items-center min-vh-100">
             <div className="col-lg-6 d-none d-lg-flex align-items-center justify-content-center">
-              <div className="text-center p-5">
+              <div className={`text-center p-5 ${darkMode ? 'text-white' : ''}`}>
                 <Motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.5 }}>
                   <img src={gptIcon} alt="ChatClone Logo" style={{ width: '120px', height: '120px' }} className="mb-4" />
-                  <h1 className="display-4 fw-bold mb-3" style={{ color: '#64748b' }}>QuantumChat</h1>
-                  <p className="lead mb-4" style={{ color: '#64748b' }}>Enterprise-grade AI platform delivering intelligent conversational experiences.</p>
+                  <h1 className="display-4 fw-bold mb-3" style={{ color: darkMode ? '#ffffff' : '#64748b' }}>QuantumChat</h1>
+                  <p className="lead mb-4" style={{ color: darkMode ? '#d1d5db' : '#64748b' }}>Enterprise-grade AI platform delivering intelligent conversational experiences.</p>
                 </Motion.div>
               </div>
             </div>
-            <div className="col-lg-6 col-md-8 col-sm-10">
+            <div className="col-lg-6 col-md-8 col-sm-10 col-12 d-flex flex-column align-items-center justify-content-center">
+              {/* Logo for Mobile/Tablet - shown only on smaller screens */}
+              <div className="d-lg-none text-center mb-4">
+                <Motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.5 }}>
+                  <img src={gptIcon} alt="ChatClone Logo" style={{ width: '80px', height: '80px' }} className="mb-3" />
+                  <h2 className="fw-bold mb-2" style={{ color: darkMode ? '#ffffff' : '#64748b' }}>QuantumChat</h2>
+                </Motion.div>
+              </div>
 
-              <motion.div
+              <Motion.div
                 initial={{ x: 50, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ duration: 0.5, delay: 0.2 }}
-                className={`p-4 shadow-lg rounded-4 ${darkMode ? 'bg-dark text-white' : 'bg-white'}`}
+                className={`p-3 p-md-4 shadow-lg rounded-4 mx-auto ${darkMode ? 'bg-dark text-white' : 'bg-white'}`}
                 style={{
                   width: "100%",
                   maxWidth: '420px',
@@ -275,7 +324,6 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
                   overflow: "hidden"
                 }}
               >
-
                 <div className="d-flex mb-4 rounded-3 p-1" style={{ backgroundColor: darkMode ? '#333' : '#f8f9fa' }}>
                   <button className={`btn flex-fill rounded-3 fw-semibold ${isLoginView ? 'btn-primary text-white' : (darkMode ? 'text-white' : 'text-dark')}`} style={{ background: isLoginView ? 'linear-gradient(to right, #3b82f6, #8b5cf6)' : 'none', border: 'none' }} onClick={() => switchView('login')}>LOG IN</button>
                   <button className={`btn flex-fill rounded-3 fw-semibold ${!isLoginView ? 'btn-primary text-white' : (darkMode ? 'text-white' : 'text-dark')}`} style={{ background: !isLoginView ? 'linear-gradient(to right, #3b82f6, #8b5cf6)' : 'none', border: 'none' }} onClick={() => switchView('signup')}>SIGN UP</button>

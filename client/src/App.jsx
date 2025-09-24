@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import ChatApp from './ChatApp';
 import AuthForm from './component/AuthForm';
@@ -12,6 +12,7 @@ import { logoutUser as apiLogoutUser } from './services/authService';
 
 const CheckoutPage = React.lazy(() => import('./component/CheckoutPage'));
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const USER_KEY = 'chatapp_current_user';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -30,11 +31,10 @@ function App() {
           setCurrentUser(data);
           setLoggedIn(true);
         }
-      } catch (error) {
-    
+      } catch (err) {
         setCurrentUser(null);
         setLoggedIn(false);
-        console.log("No active session or session check failed.");
+        console.warn('No active session or session check failed.', err);
       } finally {
       
         setLoading(false);
@@ -74,7 +74,6 @@ function App() {
 
 
   const location = useLocation();
-  const navigate = useNavigate();
   const redirectFrom = location.state?.from;
 
   // After login redirect to original destination if present
@@ -84,6 +83,15 @@ function App() {
     }
   }, [loggedIn, location.pathname, navigate, redirectFrom]);
 
+  if (loading) {
+    const containerClasses = `d-flex flex-column align-items-center justify-content-center min-vh-100 ${darkMode ? 'bg-dark text-white' : 'bg-light text-dark'}`;
+    return (
+      <div className={containerClasses}>
+        <div className="spinner-border mb-3" role="status" aria-live="polite" aria-label="Loading" />
+        <p className="m-0 fw-semibold">Checking your session...</p>
+      </div>
+    );
+  }
 
   return (
     <React.Suspense fallback={<div className="p-3">Loading...</div>}>

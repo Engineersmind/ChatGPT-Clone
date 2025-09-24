@@ -23,7 +23,6 @@ export default function ChatArea({
   message,
   setMessage,
   onSendMessage,
-  currentUser,
   isLoading = false,
   onCancelStream,
   chatTitle,
@@ -43,12 +42,11 @@ export default function ChatArea({
   const messagesEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
 
-  const stripMarkdown = (text) => {
-    return text
-      .replace(/(\*|_|~|`|#|>|-|\+|\[|\])/g, "")
-      .replace(/\!\[.*?\]\(.*?\)/g, "")
-      .replace(/\[([^\]]+)\]\([^\)]+\)/g, "$1");
-  };
+  const stripMarkdown = (text) =>
+    text
+      .replace(/[*_~`#>+-]/g, "")
+      .replace(/!\[.*?\]\(.*?\)/g, "")
+      .replace(/\[([^\]]+)]\([^)]*\)/g, "$1");
 
   //---- Clipboard ----//
   const copyToClipboard = async (text, msgId) => {
@@ -64,7 +62,6 @@ export default function ChatArea({
       console.error("Copy failed:", err);
     }
   };
-
 
   const toggleLike = (msgId) => {
     setLikedStates((prev) => ({ ...prev, [msgId]: !prev[msgId] }));
@@ -121,15 +118,16 @@ export default function ChatArea({
   };
 
   useEffect(() => {
-
-    return () => synthRef.current.cancel();
-
+    const synth = synthRef.current;
+    return () => {
+      synth?.cancel();
+    };
   }, []);
 
 
   const handleSuggestedClick = (text) => onSendMessage(text);
 
-  const handleSaveEdit = (msgId) => {
+  const handleSaveEdit = () => {
     if (editText.trim()) {
       onSendMessage(editText);
     }
@@ -390,7 +388,7 @@ export default function ChatArea({
                           className="form-control form-control-sm"
                         />
                         <button
-                          onClick={() => handleSaveEdit(msgId)}
+                          onClick={handleSaveEdit}
                           className="btn btn-sm btn-success"
                         >
                           Save

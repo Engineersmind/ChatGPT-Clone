@@ -1,67 +1,43 @@
-// Lightweight wrapper for Gemini usage used by ChatApp.
-// Keep this file as-is if you have @google/generative-ai installed and configured via VITE_GEMINI_API_KEY.
-// If not configured, the ChatApp will gracefully show a fallback message.
-
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
-
-let model = null;
-if (apiKey) {
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      generationConfig: { temperature: 0.7, topP: 0.8, topK: 40, maxOutputTokens: 2048 }
-    });
-  } catch (e) {
-    console.warn("Failed to initialize Gemini client:", e);
-    model = null;
-  }
-}
+import apiClient from './authService';
 
 export function isGeminiConfigured() {
-  return !!(apiKey && model);
+  // Backend holds the API key, so assume configured.
+  return true;
 }
 
+const mapHistory = (history = []) =>
+  Array.isArray(history)
+    ? history.map((msg) => ({ role: msg.role, text: msg.text }))
+    : [];
+
 export async function generateGeminiResponse(prompt, conversationHistory = []) {
-  if (!isGeminiConfigured()) throw new Error("Gemini API not configured");
-  try {
-    const chat = model.startChat({ history: conversationHistory.map(m => ({ role: m.role === "user" ? "user" : "model", parts: [{ text: m.text }] })) });
-    const result = await chat.sendMessage(prompt);
-    return result.response.text().trim();
-  } catch (err) {
-    console.error("generateGeminiResponse error:", err);
-    throw err;
-  }
+  const response = await apiClient.post('/api/ai/gemini', {
+    prompt,
+    history: mapHistory(conversationHistory),
+  });
+  return response.data?.text?.trim() || '';
 }
 
 export async function generateGeminiStreamResponse(prompt, conversationHistory = [], onChunk) {
-  if (!isGeminiConfigured()) throw new Error("Gemini API not configured");
   try {
-    const chat = model.startChat({ history: conversationHistory.map(m => ({ role: m.role === "user" ? "user" : "model", parts: [{ text: m.text }] })) });
-    const result = await chat.sendMessageStream(prompt);
-    let full = "";
-    try {
-      for await (const chunk of result.stream) {
-        const txt = chunk.text();
-        if (txt) {
-          full += txt;
-          if (onChunk) onChunk(txt, false);
-        }
-      }
-  // mark complete
-  if (onChunk) onChunk(null, true);
-  // final response awaited previously solely to avoid unhandled promise; not needed for current usage
-  return full.trim();
-    } catch (streamErr) {
-      if (onChunk) onChunk(null, true, streamErr.message || "Stream interrupted");
-      if (full.trim()) return full.trim();
-      throw streamErr;
+    const response = await apiClient.post('/api/ai/gemini', {
+      prompt,
+      history: mapHistory(conversationHistory),
+    });
+
+    const text = response.data?.text?.trim() || '';
+
+    if (text && onChunk) {
+      onChunk(text, false);
+      onChunk(null, true);
     }
+
+    return text;
   } catch (err) {
-    console.error("generateGeminiStreamResponse error:", err);
-    if (onChunk) onChunk(null, true, err.message || "Failed to stream");
-    throw err;
+    const message = err.response?.data?.message || err.message || 'Failed to contact AI service';
+    if (onChunk) {
+      onChunk(null, true, message);
+    }
+    throw new Error(message);
   }
 }

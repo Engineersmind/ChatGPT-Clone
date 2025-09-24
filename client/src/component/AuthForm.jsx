@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Sun, Moon, Eye, EyeOff } from 'lucide-react';
+import { AnimatePresence, motion as Motion } from 'framer-motion';
+import { Eye, EyeOff } from 'lucide-react';
 import { useGoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
 import emailjs from '@emailjs/browser';
@@ -8,10 +8,13 @@ import gptIcon from '../assets/gpt-clone-icon.png';
 import SocialLoginModal from './SocialLoginModal';
 import ForgotPasswordModal from './ForgotPasswordModal';
 import ResetPasswordModal from './ResetPasswordModal';
+import { registerUser as apiRegisterUser, loginUser as apiLoginUser } from '../services/authService';
+
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
+
   const [isLoginView, setIsLoginView] = useState(true);
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
@@ -27,15 +30,18 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetInfo, setResetInfo] = useState({ show: false, email: null, token: null });
 
+
   const [theme, setTheme] = useState(darkMode ? "dark" : "light");
   const [emailValid, setEmailValid] = useState(null);
   const [usernameValid, setUsernameValid] = useState(null);
+
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const emailParam = params.get('email');
     const tokenParam = params.get('reset_token');
     if (emailParam && tokenParam) {
+
       // NOTE: This client-side check is temporary. A real implementation
       // would validate the token against the backend.
       const users = JSON.parse(localStorage.getItem('chatapp_users')) || [];
@@ -45,15 +51,10 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
     }
   }, []);
 
-  useEffect(() => {
-    const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    let shouldBeDark = darkMode;
-    if (theme === "system") shouldBeDark = systemPrefersDark;
-    else if (theme === "dark") shouldBeDark = true;
-    else if (theme === "light") shouldBeDark = false;
 
-    document.body.className = shouldBeDark ? "bg-dark text-white" : "bg-light text-dark";
-  }, [theme, darkMode]);
+  useEffect(() => {
+    document.body.className = darkMode ? "bg-dark text-white" : "bg-light text-dark";
+  }, [darkMode]);
 
   const handleResetComplete = () => {
     window.location.href = "/";
@@ -87,30 +88,27 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
     if (!hasUpperCase || !hasLowerCase || !hasNumbers) { setError('❌ Password must contain an uppercase letter, a lowercase letter, and a number.'); setIsLoading(false); return; }
 
     try {
-      const config = { headers: { 'Content-Type': 'application/json' }, withCredentials: true };
-      await axios.post(
-        `${API_URL}/api/auth/register`,
-        { username, email, password },
-        config
-      );
+      const response = await apiRegisterUser({
+        email: email.trim(),
+        username: username.trim(),
+        password,
+      });
 
-      sendWelcomeEmail({ name: username, email: email });
-      setSuccess('🎉 Account created successfully! Please log in.');
+      const registeredUser = response.data?.user;
+      setSuccess('🎉 Account created successfully! Logging you in...');
+      sendWelcomeEmail(registeredUser || { email, username });
       setIsLoading(false);
 
-      setTimeout(() => {
-        setIsLoginView(true);
-        setError('');
-        setSuccess('');
-        setEmail(email);
-        setPassword('');
-        setUsername('');
-        setAgreeTerms(false);
-      }, 2500);
-
+      if (registeredUser) {
+        onLogin(registeredUser);
+      } else {
+        onLogin({ email, username });
+      }
     } catch (err) {
-      const errorMessage = err.response?.data?.message || 'An unexpected error occurred.';
-      setError(`❌ ${errorMessage}`);
+      console.error('Signup error:', err);
+      const message = err.response?.data?.message || 'Registration failed. Please try again.';
+      setError(`❌ ${message}`);
+
       setIsLoading(false);
     }
   };
@@ -121,23 +119,27 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
     if (!email || !password) { setError('❌ Email and password are required.'); setIsLoading(false); return; }
 
     try {
-      const config = { headers: { 'Content-Type': 'application/json' }, withCredentials: true };
-      const { data } = await axios.post(
-        `${API_URL}/api/auth/login`,
-        { email, password },
-        config
-      );
+      const response = await apiLoginUser({
+        email: email.trim(),
+        password,
+      });
 
-      setSuccess('✅ Login successful! Welcome back!');
-      setTimeout(() => {
-        // CHANGED: Simply call onLogin with the user data from the backend.
-        // The cookie is already set by the server and will persist the session.
-        onLogin(data);
-      }, 1500);
+      const loggedInUser = response.data?.user;
 
+      if (rememberMe && loggedInUser?.email) {
+        localStorage.setItem('chatapp_remember_user', JSON.stringify({ email: loggedInUser.email }));
+      } else {
+        localStorage.removeItem('chatapp_remember_user');
+      }
+
+      setSuccess('✅ Login successful! Redirecting...');
+      onLogin(loggedInUser || { email: email.trim() });
     } catch (err) {
-      const errorMessage = err.response?.data?.message || 'Invalid credentials.';
-      setError(`❌ ${errorMessage}`);
+      console.error('Login error:', err);
+      const message = err.response?.data?.message || 'Login failed. Please check your credentials.';
+      setError(`❌ ${message}`);
+    } finally {
+
       setIsLoading(false);
     }
   };
@@ -155,14 +157,28 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
           headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
         });
         const userProfile = res.data;
-        // The logic below uses localStorage and should be replaced with backend calls in the future.
-        const userToLogin = { id: userProfile.sub, email: userProfile.email, username: userProfile.name };
-        setSuccess(`✅ Welcome, ${userProfile.name}!`);
+
+
+        const userToLogin = {
+          id: userProfile.sub,
+          email: userProfile.email,
+          name: userProfile.name,
+          provider: 'Google',
+        };
+
+        if (rememberMe || !isLoginView) {
+          localStorage.setItem('chatapp_remember_user', JSON.stringify({ email: userToLogin.email }));
+        }
+
+        setSuccess(`✅ Welcome, ${userProfile.name || 'there'}!`);
+
+
         setTimeout(() => {
           onLogin(userToLogin); // Placeholder login
           setIsLoading(false);
-        }, 1500);
-      } catch (err) {
+        }, 800);
+      } catch (error) {
+        console.error('Google login failed:', error);
         setError('❌ Google login failed. Please try again.');
         setSuccess('');
         setIsLoading(false);
@@ -178,18 +194,19 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
   const handleSocialLoginSuccess = (provider) => {
     setIsModalOpen(false);
     setSuccess(`🎉 Successfully authenticated with ${provider}!`);
-    const socialUser = {
-      id: Date.now(),
-      email: `user@${provider.toLowerCase()}.com`,
-      username: `${provider} User`,
-    };
-    // This is a placeholder. Real social login requires backend integration.
-    setTimeout(() => { onLogin(socialUser); }, 1500);
+
+    const socialUser = { id: Date.now(), email: `user@${provider.toLowerCase()}.com`, username: `${provider} User`, provider };
+
+    localStorage.setItem('chatapp_remember_user', JSON.stringify({ email: socialUser.email }));
+
+    setTimeout(() => { onLogin(socialUser); }, 800);
+
   };
 
   const switchView = (view) => {
     setIsLoginView(view === 'login');
     setError(''); setSuccess(''); setEmail(''); setUsername(''); setPassword('');
+
     setAgreeTerms(false); setEmailValid(null); setUsernameValid(null);
   };
 
@@ -200,6 +217,7 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
 
   const validateUsername = (username) => {
     setUsernameValid(username.length >= 3 && /^[a-zA-Z0-9_]+$/.test(username));
+
   };
 
   useEffect(() => {
@@ -236,14 +254,15 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
           <div className="row justify-content-center">
             <div className="col-lg-6 d-none d-lg-flex align-items-center justify-content-center">
               <div className="text-center p-5">
-                <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.5 }}>
+                <Motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.5 }}>
                   <img src={gptIcon} alt="ChatClone Logo" style={{ width: '120px', height: '120px' }} className="mb-4" />
                   <h1 className="display-4 fw-bold mb-3" style={{ color: '#64748b' }}>QuantumChat</h1>
                   <p className="lead mb-4" style={{ color: '#64748b' }}>Enterprise-grade AI platform delivering intelligent conversational experiences.</p>
-                </motion.div>
+                </Motion.div>
               </div>
             </div>
             <div className="col-lg-6 col-md-8 col-sm-10">
+
               <motion.div
                 initial={{ x: 50, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
@@ -256,31 +275,32 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
                   overflow: "hidden"
                 }}
               >
+
                 <div className="d-flex mb-4 rounded-3 p-1" style={{ backgroundColor: darkMode ? '#333' : '#f8f9fa' }}>
                   <button className={`btn flex-fill rounded-3 fw-semibold ${isLoginView ? 'btn-primary text-white' : (darkMode ? 'text-white' : 'text-dark')}`} style={{ background: isLoginView ? 'linear-gradient(to right, #3b82f6, #8b5cf6)' : 'none', border: 'none' }} onClick={() => switchView('login')}>LOG IN</button>
                   <button className={`btn flex-fill rounded-3 fw-semibold ${!isLoginView ? 'btn-primary text-white' : (darkMode ? 'text-white' : 'text-dark')}`} style={{ background: !isLoginView ? 'linear-gradient(to right, #3b82f6, #8b5cf6)' : 'none', border: 'none' }} onClick={() => switchView('signup')}>SIGN UP</button>
                 </div>
 
                 <AnimatePresence>
-                  {error && (<motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="alert alert-danger rounded-3 mb-3">{error}</motion.div>)}
-                  {success && (<motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="alert alert-success rounded-3 mb-3">{success}</motion.div>)}
+                  {error && (<Motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="alert alert-danger rounded-3 mb-3">{error}</Motion.div>)}
+                  {success && (<Motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="alert alert-success rounded-3 mb-3">{success}</Motion.div>)}
                 </AnimatePresence>
 
                 <form onSubmit={isLoginView ? handleLogin : handleSignup}>
                   <div className="mb-3">
                     <input id="email" type="email"
                       className={`form-control form-control-lg rounded-3 ${darkMode ? 'bg-dark text-white border-secondary auth-input-dark' : ''}`}
-                      placeholder="Enter your email address" value={email} onChange={(e) => { setEmail(e.target.value); validateEmail(e.target.value); }}
+                      placeholder="Enter your email address" value={email} onChange={(e) => setEmail(e.target.value)}
                       required />
                   </div>
 
                   {!isLoginView && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mb-3">
+                    <Motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mb-3">
                       <input id="username" type="text"
                         className={`form-control form-control-lg rounded-3 ${darkMode ? 'bg-dark text-white border-secondary auth-input-dark' : ''}`}
-                        placeholder="Choose a unique username" value={username} onChange={(e) => { setUsername(e.target.value); validateUsername(e.target.value); }}
+                        placeholder="Choose a unique username" value={username} onChange={(e) => setUsername(e.target.value)}
                         required={!isLoginView} />
-                    </motion.div>
+                    </Motion.div>
                   )}
 
                   <div className="mb-3">
@@ -307,13 +327,13 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
                       </button>
                     </div>
                     {!isLoginView && password && (
-                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-2">
+                      <Motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-2">
                         <div className="d-flex justify-content-between align-items-center mb-1">
                           <small>Password Strength:</small>
                           <small style={{ color: passwordStrength.color, fontWeight: 'bold' }}>{passwordStrength.label}</small>
                         </div>
                         <div className="progress" style={{ height: '4px' }}><div className="progress-bar" style={{ width: `${(passwordStrength.score / 6) * 100}%`, backgroundColor: passwordStrength.color, transition: 'all 0.3s ease' }} /></div>
-                      </motion.div>
+                      </Motion.div>
                     )}
                   </div>
 
@@ -326,10 +346,10 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
                     <div className="mb-3 form-check"><input type="checkbox" className="form-check-input" id="agreeTerms" checked={agreeTerms} onChange={(e) => setAgreeTerms(e.target.checked)} required /><label className="form-check-label small" htmlFor="agreeTerms">I agree to the <a href="#terms" className="text-decoration-none">Terms & Conditions</a></label></div>
                   )}
 
-                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" className="btn text-white w-100 py-3 fw-bold rounded-3 mb-3" style={{ background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', border: 'none' }} disabled={isLoading}>
+                  <Motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" className="btn text-white w-100 py-3 fw-bold rounded-3 mb-3" style={{ background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', border: 'none' }} disabled={isLoading}>
                     {isLoading && <div className="spinner-border spinner-border-sm me-2" role="status"></div>}
                     {isLoginView ? 'SECURE LOGIN' : 'CREATE ACCOUNT'}
-                  </motion.button>
+                  </Motion.button>
                 </form>
 
                 <div className="text-center my-3 position-relative"><hr /><span className={`px-3 position-absolute top-50 start-50 translate-middle ${darkMode ? 'bg-dark' : 'bg-white'}`}>or</span></div>
@@ -341,7 +361,7 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
                 </div>
 
                 <div className="text-center"><span className="small">{isLoginView ? "Don't have an account? " : "Already have an account? "}<button type="button" className="btn btn-link p-0 text-decoration-none" onClick={() => switchView(isLoginView ? 'signup' : 'login')}>{isLoginView ? 'Sign Up' : 'Log In'}</button></span></div>
-              </motion.div>
+              </Motion.div>
             </div>
           </div>
         </div>

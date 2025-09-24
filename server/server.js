@@ -1,28 +1,55 @@
-const dotenv = require('dotenv');
-dotenv.config();
 
 const express = require('express');
-const cors = require('cors');
+const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
+const cors = require('cors');
+const dotenv = require('dotenv');
+
+dotenv.config();
+
 const connectDB = require('./config/db');
+const authRoutes = require('./routes/auth');
+const chatRoutes = require('./routes/chats');
+const aiRoutes = require('./routes/ai');
 
 connectDB();
 
 const app = express();
 
-app.use(cors({
-  origin: process.env.CLIENT_URL,  // e.g. http://localhost:5173
-  credentials: true,
-}));
 
+app.use(morgan('dev'));
 app.use(express.json());
 app.use(cookieParser());
+const allowedOrigins = (process.env.CLIENT_ORIGINS || process.env.CLIENT_ORIGIN || 'http://localhost:5176,http://localhost:5173')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
-app.get('/', (req, res) => {
-  res.send('QuantumChat API is running...');
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g., mobile apps, Postman) only in development
+      if (!origin && process.env.NODE_ENV !== 'production') return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error('Origin not allowed by CORS'));
+    },
+    credentials: true,
+  })
+);
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok' });
 });
 
-app.use('/api/auth', require('./routes/auth'));
+app.use('/api/auth', authRoutes);
+app.use('/api/chats', chatRoutes);
+app.use('/api/ai', aiRoutes);
+
+app.use((req, res) => {
+  res.status(404).json({ message: `Route ${req.originalUrl} not found` });
+});
+
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));

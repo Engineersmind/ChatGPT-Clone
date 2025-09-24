@@ -1,77 +1,114 @@
-const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
+
+
+const TOKEN_EXPIRY_DAYS = 30;
+
+const generateToken = (userId) =>
+  jwt.sign({ id: userId }, process.env.JWT_SECRET, {
+    expiresIn: `${TOKEN_EXPIRY_DAYS}d`,
+  });
+
+const buildUserPayload = (user) => ({
+  id: user._id,
+  username: user.username,
+  email: user.email,
+  provider: user.provider,
+  createdAt: user.createdAt,
+});
+
+const sendTokenResponse = (user, res, statusCode = 200) => {
+  const token = generateToken(user._id);
+  const maxAgeMs = TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  res
+    .status(statusCode)
+    .cookie('token', token, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+      maxAge: maxAgeMs,
+    })
+    .json({
+      message: 'Success',
+      user: buildUserPayload(user),
+      token,
+    });
+
 };
 
 exports.registerUser = async (req, res) => {
   const { username, email, password } = req.body;
+
+  if (!username || !email || !password) {
+    return res.status(400).json({ message: 'Username, email, and password are required.' });
+  }
+
   try {
-    const userExists = await User.findOne({ email });
-    if (userExists) {
-      return res.status(400).json({ message: 'User with this email already exists' });
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedUsername = username.trim();
+
+    const existingUser = await User.findOne({
+      $or: [{ email: normalizedEmail }, { username: normalizedUsername }],
+    });
+
+    if (existingUser) {
+      return res.status(409).json({ message: 'User with this email or username already exists.' });
     }
-    await User.create({ username, email, password });
-    res.status(201).json({ success: true, message: 'Registration successful' });
-  } catch (error)
- {
-    console.error(error);
-    res.status(500).json({ message: 'Server Error' });
+
+    const user = await User.create({
+      username: normalizedUsername,
+      email: normalizedEmail,
+      password,
+    });
+
+    return sendTokenResponse(user, res, 201);
+  } catch (error) {
+    console.error('Error registering user:', error);
+    return res.status(500).json({ message: 'Server error while registering user.' });
+
   }
 };
 
 exports.loginUser = async (req, res) => {
   const { email, password } = req.body;
+
+
   if (!email || !password) {
-    return res.status(400).json({ message: 'Please provide email and password' });
+    return res.status(400).json({ message: 'Email and password are required.' });
   }
+
   try {
-    const user = await User.findOne({ email }).select('+password');
-    if (!user) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
-    const isMatch = await user.matchPassword(password);
-    if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
-    const token = generateToken(user._id);
+    const user = await User.findOne({ email: email.toLowerCase() });
 
-    // --- MODIFIED FOR LOCAL DEVELOPMENT ---
-    // The original code with `process.env.NODE_ENV` is correct for production,
-    // but hardcoding these values helps ensure the cookie is set on http://localhost.
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: false, // Must be `false` for http (localhost)
-      sameSite: 'lax', // `lax` is standard for development
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      path: '/',
-    });
-    // --- END OF MODIFICATION ---
+    if (!user || !(await user.matchPassword(password))) {
+      return res.status(401).json({ message: 'Invalid email or password.' });
+    }
 
-    res.status(200).json({
-      _id: user._id,
-      username: user.username,
-      email: user.email,
-    });
+    return sendTokenResponse(user, res);
+
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server Error' });
+    console.error('Error logging in user:', error);
+    return res.status(500).json({ message: 'Server error while logging in.' });
   }
 };
 
 exports.logoutUser = (req, res) => {
-    // Also apply the same hardcoded logic here for consistency in development
-  res.clearCookie('token', {
-    httpOnly: true,
-    secure: false,
-    sameSite: 'lax',
-    path: '/',
-  });
-  res.status(200).json({ message: 'Logged out successfully' });
-};
 
-exports.getMe = async (req, res) => {
+  res
+    .cookie('token', '', {
+      httpOnly: true,
+      expires: new Date(0),
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      secure: process.env.NODE_ENV === 'production',
+    })
+    .status(200)
+    .json({ message: 'Logged out successfully.' });
 
-  res.status(200).json(req.user);
 };

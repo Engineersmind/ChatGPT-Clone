@@ -1,12 +1,11 @@
 import React, { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion as Motion } from "framer-motion";
 import { Check, Shield, Zap, Eye, EyeOff } from "lucide-react";
  
 const UpgradePlan = ({ darkMode, onClose, onUpgradeSuccess }) => {
   const [showPayment, setShowPayment] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedMethod, setSelectedMethod] = useState("card");
   const [showCVC, setShowCVC] = useState(false);
  
   const [cardData, setCardData] = useState({
@@ -67,7 +66,7 @@ const UpgradePlan = ({ darkMode, onClose, onUpgradeSuccess }) => {
  
   return (
     <AnimatePresence>
-      <motion.div
+  <Motion.div
         className="modal-overlay"
         onClick={(e) => {
           if (e.target === e.currentTarget) {
@@ -79,7 +78,7 @@ const UpgradePlan = ({ darkMode, onClose, onUpgradeSuccess }) => {
         exit={{ opacity: 0 }}
         style={{ zIndex: 2000, position: "fixed", top: 0, left: 0, right: 0, bottom: 0 }}
       >
-        <motion.div
+  <Motion.div
           className={`modal-content rounded-4 shadow-lg ${darkMode ? "bg-dark text-light" : "bg-white text-dark"}`}
           style={{ maxWidth: 800, width: "90%", overflow: "hidden", margin: "auto", position: "relative" }}
           onClick={(e) => e.stopPropagation()}
@@ -121,7 +120,7 @@ const UpgradePlan = ({ darkMode, onClose, onUpgradeSuccess }) => {
                 <div className="row g-4">
                   {/* Free Plan */}
                   <div className="col-12 col-md-6">
-                    <motion.div
+                    <Motion.div
                       whileHover={{ y: -4 }}
                       className="card h-100 border-0 rounded-4"
                       style={{
@@ -152,13 +151,13 @@ const UpgradePlan = ({ darkMode, onClose, onUpgradeSuccess }) => {
                           Current Plan
                         </button>
                       </div>
-                    </motion.div>
+                    </Motion.div>
  
                   </div>
  
                   {/* Pro Plan */}
                   <div className="col-12 col-md-6">
-                    <motion.div
+                    <Motion.div
                       whileHover={{ y: -4 }}
                       className="card h-100 border-0 rounded-4 text-white"
                       style={{ background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)" }}
@@ -185,7 +184,7 @@ const UpgradePlan = ({ darkMode, onClose, onUpgradeSuccess }) => {
                           Upgrade Now
                         </button>
                       </div>
-                    </motion.div>
+                    </Motion.div>
                   </div>
                 </div>
  
@@ -204,9 +203,8 @@ const UpgradePlan = ({ darkMode, onClose, onUpgradeSuccess }) => {
             ) : (
               <AnimatePresence>
                 {!paymentSuccess ? (
-                  <motion.div key="payment-form" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                  <Motion.div key="payment-form" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                     <h4 style={{ color: textColor, marginBottom: "1rem" }}>Complete Payment</h4>
-                    {selectedMethod === "card" && (
                       <form onSubmit={handleFakePayment}>
                         <div className="mb-3">
                           <label>Card Number</label>
@@ -281,20 +279,19 @@ const UpgradePlan = ({ darkMode, onClose, onUpgradeSuccess }) => {
                           </button>
                         </div>
                       </form>
-                    )}
-                  </motion.div>
+                  </Motion.div>
                 ) : (
-                  <motion.div className="text-center py-5" style={{ color: "green" }}>
+                  <Motion.div className="text-center py-5" style={{ color: "green" }}>
                     <Check size={80} />
                     <h3 className="mt-4">Payment Successful!</h3>
                     <p>Your plan has been upgraded to Pro.</p>
-                  </motion.div>
+                  </Motion.div>
                 )}
               </AnimatePresence>
             )}
           </div>
-        </motion.div>
-      </motion.div>
+        </Motion.div>
+      </Motion.div>
     </AnimatePresence>
   );
 };

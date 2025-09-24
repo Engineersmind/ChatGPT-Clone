@@ -4,7 +4,11 @@ import axios from 'axios';
 import ChatApp from './ChatApp';
 import AuthForm from './component/AuthForm';
 import RequireAuth from './routes/RequireAuth';
-import UpgradePlan from './component/UpgradePlan'; 
+
+import UpgradePlan from './component/UpgradePlan';
+import { logoutUser as apiLogoutUser } from './services/authService';
+
+
 
 const CheckoutPage = React.lazy(() => import('./component/CheckoutPage'));
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -50,14 +54,16 @@ function App() {
 
   const handleLogout = async () => {
     try {
-      await axios.post(`${API_URL}/api/auth/logout`, {}, { withCredentials: true });
+
+      await apiLogoutUser();
     } catch (error) {
-      console.error("Logout API call failed", error);
-    } finally {
-      setCurrentUser(null);
-      setLoggedIn(false);
-      navigate('/login');
+      console.error('Error logging out:', error);
     }
+    setCurrentUser(null);
+    setLoggedIn(false);
+    setDarkMode(false);
+    localStorage.removeItem(USER_KEY);
+
   };
 
   const toggleDarkMode = () => setDarkMode(!darkMode);
@@ -66,14 +72,18 @@ function App() {
     document.body.className = darkMode ? 'bg-dark text-white' : 'bg-light text-dark';
   }, [darkMode]);
 
-  // ADDED: Render a loading indicator while checking the session
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <h2>Loading...</h2>
-      </div>
-    );
-  }
+
+  const location = useLocation();
+  const navigate = useNavigate();
+  const redirectFrom = location.state?.from;
+
+  // After login redirect to original destination if present
+  useEffect(() => {
+    if (loggedIn && location.pathname === '/login') {
+      navigate(redirectFrom || '/', { replace: true });
+    }
+  }, [loggedIn, location.pathname, navigate, redirectFrom]);
+
 
   return (
     <React.Suspense fallback={<div className="p-3">Loading...</div>}>

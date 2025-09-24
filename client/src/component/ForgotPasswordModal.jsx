@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion as Motion } from 'framer-motion';
 import emailjs from '@emailjs/browser';
 import { X as CloseIcon, Mail } from 'lucide-react';
 
@@ -73,7 +73,7 @@ export default function ForgotPasswordModal({ darkMode, onClose }) {
  
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <motion.div
+      <Motion.div
         initial={{ y: -50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: -50, opacity: 0 }}
@@ -123,7 +123,7 @@ export default function ForgotPasswordModal({ darkMode, onClose }) {
              Back to Login
           </button>
         </div>
-      </motion.div>
+      </Motion.div>
     </div>
   );
 }

@@ -1,28 +1,51 @@
 const express = require('express');
-const dotenv = require('dotenv');
+const morgan = require('morgan');
+const cookieParser = require('cookie-parser');
 const cors = require('cors');
-const connectDB = require('./config/db');
+const dotenv = require('dotenv');
 
-// Load environment variables from .env file
 dotenv.config();
 
-// Connect to MongoDB
+const connectDB = require('./config/db');
+const authRoutes = require('./routes/auth');
+const chatRoutes = require('./routes/chats');
+const aiRoutes = require('./routes/ai');
 connectDB();
 
 const app = express();
 
-// Middleware
-app.use(cors()); // Enable Cross-Origin Resource Sharing
-app.use(express.json()); // Allow the server to accept & parse JSON in request bodies
+app.use(morgan('dev'));
+app.use(express.json());
+app.use(cookieParser());
+const allowedOrigins = (process.env.CLIENT_ORIGINS || process.env.CLIENT_ORIGIN || 'http://localhost:5176,http://localhost:5173')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
-// A simple test route to see if the server is up
-app.get('/', (req, res) => {
-  res.send('QuantumChat API is running...');
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`Origin ${origin} not allowed by CORS`));
+    },
+    credentials: true,
+  })
+);
+
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok' });
 });
 
-// API Routes
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/chats', require('./routes/chats'));
+app.use('/api/auth', authRoutes);
+app.use('/api/chats', chatRoutes);
+app.use('/api/ai', aiRoutes);
+
+app.use((req, res) => {
+  res.status(404).json({ message: `Route ${req.originalUrl} not found` });
+});
 
 const PORT = process.env.PORT || 5000;
 

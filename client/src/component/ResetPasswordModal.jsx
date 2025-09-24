@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion as Motion } from 'framer-motion';
 import { Lock, Eye, EyeOff } from 'lucide-react';
 import './SocialLoginModal.css';
  
@@ -60,7 +60,7 @@ export default function ResetPasswordModal({ darkMode, email, onComplete }) {
  
   return (
     <div className="modal-overlay">
-      <motion.div
+      <Motion.div
         initial={{ y: -50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         className={`modal-content-wrapper ${darkMode ? 'bg-dark text-light' : 'bg-white text-dark'}`}
@@ -112,7 +112,7 @@ export default function ResetPasswordModal({ darkMode, email, onComplete }) {
             </form>
           )}
         </div>
-      </motion.div>
+      </Motion.div>
     </div>
   );
 }

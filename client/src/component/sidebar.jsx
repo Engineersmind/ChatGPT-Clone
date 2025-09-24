@@ -94,20 +94,6 @@ export default function Sidebar({
   const shouldShowFull = !isCollapsed;
   const sidebarWidth = shouldShowFull ? '280px' : '60px';
 
-  const navButtonStyle = {
-    background: 'none',
-    border: 'none',
-    transition: 'background-color 0.2s',
-    width: '100%',
-    textAlign: 'start',
-    padding: '6px 12px',
-    borderRadius: '0.5rem',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    cursor: 'pointer'
-  };
-
   const handleHover = (e) => {
     e.target.style.backgroundColor = darkMode ? '#333' : '#f8f9fa';
   };
@@ -230,7 +216,7 @@ export default function Sidebar({
                   .map((chat) => (
                     <div
                       key={chat.id}
-                      onClick={(e) => {
+                      onClick={() => {
                         if (renamingChatId) return; // prevent navigation while renaming
                         onSelectChat(chat.id);
                       }}
@@ -291,7 +277,6 @@ export default function Sidebar({
                         <ChatActionsDropdown
                           chat={chat}
                           darkMode={darkMode}
-                          onRename={onRename}
                           onRequestRename={() => {
                             setRenamingChatId(chat.id);
                             setRenameValue(chat.title || "");

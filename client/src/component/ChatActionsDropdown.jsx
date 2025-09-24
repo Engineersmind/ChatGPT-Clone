@@ -6,7 +6,6 @@ import { jsPDF } from "jspdf";
 export default function ChatActionsDropdown({
   chat,
   darkMode,
-  onRename,
   onRequestRename,
   onArchive,
   onDelete,
@@ -41,7 +40,7 @@ export default function ChatActionsDropdown({
 
     chat.messages.forEach((msg) => {
       let sender = msg.role === "user" ? "User" : "AI";
-      let text = (msg.text || "").replace(/\*+/g, "").replace(/\"/g, "");
+  let text = (msg.text || "").replace(/\*+/g, "").replace(/"/g, "");
 
       if (y + lineHeight > pageHeight - 10) {
         doc.addPage();
@@ -78,17 +77,16 @@ export default function ChatActionsDropdown({
 
   // --- updated: fixed copy link with chatId in URL ---
   const handleCopyLink = () => {
-  try {
-    // Only include chatId parameter
-    const link = `${window.location.origin}/?chatId=${encodeURIComponent(chat.id)}`;
-    navigator.clipboard.writeText(link);
-    alert("Link copied to clipboard!");
-  } catch (err) {
-    console.error(err);
-    alert("Failed to copy link.");
-  }
-  handleCloseDropdown();
-};
+    try {
+      const link = `${window.location.origin}/?chatId=${encodeURIComponent(chat.id)}`;
+      navigator.clipboard.writeText(link);
+      alert("Link copied to clipboard!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to copy link.");
+    }
+    handleCloseDropdown();
+  };
 
 
   const buttonStyle = (btnName) => ({
@@ -111,7 +109,7 @@ export default function ChatActionsDropdown({
       const top = direction === "down" ? rect.bottom + 2 : rect.top - dropdownHeight - 2;
       setDropdownPosition({ top, left: rect.left, direction });
     }
-  }, [showDropdown]);
+  }, [showDropdown, chat.id]);
 
   useEffect(() => {
   function handleClickOutside(e) {

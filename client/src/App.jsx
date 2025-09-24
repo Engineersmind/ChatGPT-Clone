@@ -4,6 +4,7 @@ import ChatApp from './ChatApp';
 import AuthForm from './component/AuthForm';
 import RequireAuth from './routes/RequireAuth';
 import UpgradePlan from './component/UpgradePlan';
+import { logoutUser as apiLogoutUser } from './services/authService';
 
 
 const CheckoutPage = React.lazy(() => import('./component/CheckoutPage'));
@@ -34,7 +35,12 @@ function App() {
     setDarkMode(userTheme === 'dark' || (userTheme === 'system' && systemPrefersDark));
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await apiLogoutUser();
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
     setCurrentUser(null);
     setLoggedIn(false);
     setDarkMode(false);
@@ -51,14 +57,14 @@ function App() {
 
   const location = useLocation();
   const navigate = useNavigate();
+  const redirectFrom = location.state?.from;
 
   // After login redirect to original destination if present
   useEffect(() => {
     if (loggedIn && location.pathname === '/login') {
-      const from = location.state?.from || '/';
-      navigate(from, { replace: true });
+      navigate(redirectFrom || '/', { replace: true });
     }
-  }, [loggedIn, location.pathname]);
+  }, [loggedIn, location.pathname, navigate, redirectFrom]);
 
   return (
     <React.Suspense fallback={<div className="p-3">Loading...</div>}>

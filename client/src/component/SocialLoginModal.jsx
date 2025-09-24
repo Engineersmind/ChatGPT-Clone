@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion as Motion } from 'framer-motion';
 import { X as CloseIcon, ArrowRight, Lock, Mail, User, Eye, EyeOff } from 'lucide-react';
 import emailjs from '@emailjs/browser';
 import './SocialLoginModal.css';
@@ -27,7 +27,6 @@ export default function SocialLoginModal({ provider, darkMode, onClose, onSucces
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false); // <-- Add state for password visibility
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep] = useState(1);
  
@@ -39,7 +38,6 @@ export default function SocialLoginModal({ provider, darkMode, onClose, onSucces
     setPassword('');
     setShowPassword(false);
     setError('');
-    setSuccess('');
   }, [provider]);
  
   const handleSubmit = (e) => {
@@ -125,7 +123,7 @@ export default function SocialLoginModal({ provider, darkMode, onClose, onSucces
         </>
       )}
       {step === 2 && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+  <Motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <div className="d-flex align-items-center mb-3">
             <Mail size={16} className="me-2 text-muted" />
             <span className="small">{email}</span>
@@ -151,7 +149,7 @@ export default function SocialLoginModal({ provider, darkMode, onClose, onSucces
               <button type="submit" className="btn btn-primary px-4" disabled={isLoading || !password}>{isLoading ? <span className="spinner-border spinner-border-sm me-2"></span> : null}Sign in</button>
             </div>
           </form>
-        </motion.div>
+  </Motion.div>
       )}
     </div>
   );
@@ -171,9 +169,9 @@ export default function SocialLoginModal({ provider, darkMode, onClose, onSucces
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={`form-control ${darkMode ? 'bg-dark-subtle text-white border-secondary' : ''}`} placeholder="Apple ID (Email)" required />
           </div>
           {!isExistingUser && (
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mb-3">
+            <Motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mb-3">
               <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} className={`form-control ${darkMode ? 'bg-dark-subtle text-white border-secondary' : ''}`} placeholder="Username (optional)" />
-            </motion.div>
+            </Motion.div>
           )}
           <div className="position-relative mb-3">
             <input
@@ -205,7 +203,7 @@ export default function SocialLoginModal({ provider, darkMode, onClose, onSucces
  
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <motion.div
+  <Motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
@@ -215,7 +213,7 @@ export default function SocialLoginModal({ provider, darkMode, onClose, onSucces
       >
         <button onClick={onClose} className={`modal-close-btn ${darkMode ? 'text-light' : 'text-dark'}`}><CloseIcon size={24} /></button>
         {renderContent()}
-      </motion.div>
+  </Motion.div>
     </div>
   );
 }

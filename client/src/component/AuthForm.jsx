@@ -11,13 +11,16 @@ import ResetPasswordModal from './ResetPasswordModal';
 import { registerUser as apiRegisterUser, loginUser as apiLoginUser } from '../services/authService';
 
 
-export default function AuthForm({ darkMode, onLogin }) {
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
+
   const [isLoginView, setIsLoginView] = useState(true);
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  // REMOVED: `rememberMe` is no longer needed as sessions are handled by the backend cookie.
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -27,18 +30,28 @@ export default function AuthForm({ darkMode, onLogin }) {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetInfo, setResetInfo] = useState({ show: false, email: null, token: null });
 
+
+  const [theme, setTheme] = useState(darkMode ? "dark" : "light");
+  const [emailValid, setEmailValid] = useState(null);
+  const [usernameValid, setUsernameValid] = useState(null);
+
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const emailParam = params.get('email');
     const tokenParam = params.get('reset_token');
     if (emailParam && tokenParam) {
-      setResetInfo({ show: true, email: emailParam, token: tokenParam });
+
+      // NOTE: This client-side check is temporary. A real implementation
+      // would validate the token against the backend.
+      const users = JSON.parse(localStorage.getItem('chatapp_users')) || [];
+      if (users.some(u => u.email === emailParam)) {
+        setResetInfo({ show: true, email: emailParam, token: tokenParam });
+      }
     }
   }, []);
 
-  
 
-  // --- FULL BODY DARK/LIGHT MODE HANDLER ---
   useEffect(() => {
     document.body.className = darkMode ? "bg-dark text-white" : "bg-light text-dark";
   }, [darkMode]);
@@ -63,6 +76,7 @@ export default function AuthForm({ darkMode, onLogin }) {
   const handleSignup = async (e) => {
     e.preventDefault();
     setError(''); setSuccess(''); setIsLoading(true);
+
     if (!email || !username || !password) { setError('❌ All fields are required.'); setIsLoading(false); return; }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) { setError('❌ Please enter a valid email address.'); setIsLoading(false); return; }
@@ -72,6 +86,7 @@ export default function AuthForm({ darkMode, onLogin }) {
     if (password.length < 6) { setError('❌ Password must be at least 6 characters long.'); setIsLoading(false); return; }
     const hasUpperCase = /[A-Z]/.test(password); const hasLowerCase = /[a-z]/.test(password); const hasNumbers = /\d/.test(password);
     if (!hasUpperCase || !hasLowerCase || !hasNumbers) { setError('❌ Password must contain an uppercase letter, a lowercase letter, and a number.'); setIsLoading(false); return; }
+
     try {
       const response = await apiRegisterUser({
         email: email.trim(),
@@ -93,6 +108,7 @@ export default function AuthForm({ darkMode, onLogin }) {
       console.error('Signup error:', err);
       const message = err.response?.data?.message || 'Registration failed. Please try again.';
       setError(`❌ ${message}`);
+
       setIsLoading(false);
     }
   };
@@ -101,6 +117,7 @@ export default function AuthForm({ darkMode, onLogin }) {
     e.preventDefault();
     setError(''); setSuccess(''); setIsLoading(true);
     if (!email || !password) { setError('❌ Email and password are required.'); setIsLoading(false); return; }
+
     try {
       const response = await apiLoginUser({
         email: email.trim(),
@@ -122,12 +139,16 @@ export default function AuthForm({ darkMode, onLogin }) {
       const message = err.response?.data?.message || 'Login failed. Please check your credentials.';
       setError(`❌ ${message}`);
     } finally {
+
       setIsLoading(false);
     }
   };
 
   const loginWithGoogle = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
+      // Note: This is a frontend-only implementation. For a full-stack app,
+      // you would send the tokenResponse.access_token to your backend to verify
+      // and create a session there.
       try {
         setIsLoading(true);
         setError('');
@@ -136,6 +157,7 @@ export default function AuthForm({ darkMode, onLogin }) {
           headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
         });
         const userProfile = res.data;
+
 
         const userToLogin = {
           id: userProfile.sub,
@@ -150,8 +172,9 @@ export default function AuthForm({ darkMode, onLogin }) {
 
         setSuccess(`✅ Welcome, ${userProfile.name || 'there'}!`);
 
+
         setTimeout(() => {
-          onLogin(userToLogin);
+          onLogin(userToLogin); // Placeholder login
           setIsLoading(false);
         }, 800);
       } catch (error) {
@@ -171,34 +194,35 @@ export default function AuthForm({ darkMode, onLogin }) {
   const handleSocialLoginSuccess = (provider) => {
     setIsModalOpen(false);
     setSuccess(`🎉 Successfully authenticated with ${provider}!`);
+
     const socialUser = { id: Date.now(), email: `user@${provider.toLowerCase()}.com`, username: `${provider} User`, provider };
 
     localStorage.setItem('chatapp_remember_user', JSON.stringify({ email: socialUser.email }));
 
     setTimeout(() => { onLogin(socialUser); }, 800);
+
   };
 
   const switchView = (view) => {
     setIsLoginView(view === 'login');
     setError(''); setSuccess(''); setEmail(''); setUsername(''); setPassword('');
-    setAgreeTerms(false); setRememberMe(false);
+
+    setAgreeTerms(false); setEmailValid(null); setUsernameValid(null);
   };
 
-  // --- MODIFIED useEffect for pre-filling email if remembered ---
+  const validateEmail = (email) => {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    setEmailValid(re.test(email));
+  };
+
+  const validateUsername = (username) => {
+    setUsernameValid(username.length >= 3 && /^[a-zA-Z0-9_]+$/.test(username));
+
+  };
+
   useEffect(() => {
-    const rememberedUser = localStorage.getItem('chatapp_remember_user');
-    if (rememberedUser && isLoginView) {
-      try {
-        const user = JSON.parse(rememberedUser);
-        setEmail(user.email);
-        setRememberMe(true);
-      } catch (e) {
-        console.error("Error parsing remembered user for pre-fill:", e);
-        localStorage.removeItem('chatapp_remember_user');
-      }
-    } else {
+    if (!isLoginView) {
       setEmail('');
-      setRememberMe(false);
     }
   }, [isLoginView]);
 
@@ -225,8 +249,7 @@ export default function AuthForm({ darkMode, onLogin }) {
 
   return (
     <>
-    <div className="d-flex align-items-center justify-content-center gradient-bg" style={{ minHeight: '100vh',padding: "20px",boxSizing: "border-box", overflow: 'hidden' }}>
-
+      <div className="d-flex align-items-center justify-content-center gradient-bg" style={{ minHeight: '100vh', padding: "20px", boxSizing: "border-box", overflow: 'hidden' }}>
         <div className="container-fluid">
           <div className="row justify-content-center">
             <div className="col-lg-6 d-none d-lg-flex align-items-center justify-content-center">
@@ -239,18 +262,19 @@ export default function AuthForm({ darkMode, onLogin }) {
               </div>
             </div>
             <div className="col-lg-6 col-md-8 col-sm-10">
-              <Motion.div
-  initial={{ x: 50, opacity: 0 }}
-  animate={{ x: 0, opacity: 1 }}
-  transition={{ duration: 0.5, delay: 0.2 }}
-  className={`p-4 shadow-lg rounded-4 ${darkMode ? 'bg-dark text-white' : 'bg-white'}`}
-  style={{
-    width: "100%",
-    maxWidth: '420px',
-    maxHeight: '92vh',      
-    overflow: "hidden"       
-  }}
->
+
+              <motion.div
+                initial={{ x: 50, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className={`p-4 shadow-lg rounded-4 ${darkMode ? 'bg-dark text-white' : 'bg-white'}`}
+                style={{
+                  width: "100%",
+                  maxWidth: '420px',
+                  maxHeight: '92vh',
+                  overflow: "hidden"
+                }}
+              >
 
                 <div className="d-flex mb-4 rounded-3 p-1" style={{ backgroundColor: darkMode ? '#333' : '#f8f9fa' }}>
                   <button className={`btn flex-fill rounded-3 fw-semibold ${isLoginView ? 'btn-primary text-white' : (darkMode ? 'text-white' : 'text-dark')}`} style={{ background: isLoginView ? 'linear-gradient(to right, #3b82f6, #8b5cf6)' : 'none', border: 'none' }} onClick={() => switchView('login')}>LOG IN</button>
@@ -302,7 +326,6 @@ export default function AuthForm({ darkMode, onLogin }) {
                         }
                       </button>
                     </div>
-
                     {!isLoginView && password && (
                       <Motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-2">
                         <div className="d-flex justify-content-between align-items-center mb-1">
@@ -315,9 +338,9 @@ export default function AuthForm({ darkMode, onLogin }) {
                   </div>
 
                   {isLoginView ? (
-                    <div className="d-flex justify-content-between align-items-center mb-3">
-                      <div className="form-check"><input type="checkbox" className="form-check-input" id="rememberMe" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} /><label className="form-check-label small" htmlFor="rememberMe">Remember Me</label></div>
-                      <button type="button" className="btn btn-link small text-decoration-none p-0" onClick={() => setShowForgotPassword(true)}>Forgot Password?</button>
+                    // CHANGED: Removed the "Remember Me" checkbox.
+                    <div className="d-flex justify-content-end align-items-center mb-3">
+                       <button type="button" className="btn btn-link small text-decoration-none p-0" onClick={() => setShowForgotPassword(true)}>Forgot Password?</button>
                     </div>
                   ) : (
                     <div className="mb-3 form-check"><input type="checkbox" className="form-check-input" id="agreeTerms" checked={agreeTerms} onChange={(e) => setAgreeTerms(e.target.checked)} required /><label className="form-check-label small" htmlFor="agreeTerms">I agree to the <a href="#terms" className="text-decoration-none">Terms & Conditions</a></label></div>

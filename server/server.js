@@ -1,3 +1,4 @@
+
 const express = require('express');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
@@ -10,9 +11,11 @@ const connectDB = require('./config/db');
 const authRoutes = require('./routes/auth');
 const chatRoutes = require('./routes/chats');
 const aiRoutes = require('./routes/ai');
+
 connectDB();
 
 const app = express();
+
 
 app.use(morgan('dev'));
 app.use(express.json());
@@ -47,6 +50,6 @@ app.use((req, res) => {
   res.status(404).json({ message: `Route ${req.originalUrl} not found` });
 });
 
-const PORT = process.env.PORT || 5000;
 
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));

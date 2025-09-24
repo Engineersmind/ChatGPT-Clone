@@ -5,6 +5,7 @@ if (!process.env.JWT_SECRET) {
   throw new Error('JWT_SECRET environment variable is required');
 }
 
+
 const TOKEN_EXPIRY_DAYS = 30;
 
 const generateToken = (userId) =>
@@ -38,6 +39,7 @@ const sendTokenResponse = (user, res, statusCode = 200) => {
       user: buildUserPayload(user),
       token,
     });
+
 };
 
 exports.registerUser = async (req, res) => {
@@ -48,6 +50,7 @@ exports.registerUser = async (req, res) => {
   }
 
   try {
+
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedUsername = username.trim();
 
@@ -69,11 +72,13 @@ exports.registerUser = async (req, res) => {
   } catch (error) {
     console.error('Error registering user:', error);
     return res.status(500).json({ message: 'Server error while registering user.' });
+
   }
 };
 
 exports.loginUser = async (req, res) => {
   const { email, password } = req.body;
+
 
   if (!email || !password) {
     return res.status(400).json({ message: 'Email and password are required.' });
@@ -87,6 +92,7 @@ exports.loginUser = async (req, res) => {
     }
 
     return sendTokenResponse(user, res);
+
   } catch (error) {
     console.error('Error logging in user:', error);
     return res.status(500).json({ message: 'Server error while logging in.' });
@@ -94,6 +100,7 @@ exports.loginUser = async (req, res) => {
 };
 
 exports.logoutUser = (req, res) => {
+
   res
     .cookie('token', '', {
       httpOnly: true,
@@ -103,4 +110,5 @@ exports.logoutUser = (req, res) => {
     })
     .status(200)
     .json({ message: 'Logged out successfully.' });
+
 };

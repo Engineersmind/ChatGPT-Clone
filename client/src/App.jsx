@@ -1,113 +1,109 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import ChatApp from './ChatApp';
 import AuthForm from './component/AuthForm';
 import RequireAuth from './routes/RequireAuth';
-import UpgradePlan from './component/UpgradePlan';
-
+import UpgradePlan from './component/UpgradePlan'; 
 
 const CheckoutPage = React.lazy(() => import('./component/CheckoutPage'));
-
-const USER_KEY = "chatapp_remember_user";
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 function App() {
-  const [loggedIn, setLoggedIn] = useState(() => {
-    const stored = localStorage.getItem(USER_KEY);
-    return stored ? true : false;
-  });
-
-  const [currentUser, setCurrentUser] = useState(() => {
-    const stored = localStorage.getItem(USER_KEY);
-    return stored ? JSON.parse(stored) : null;
-  });
-
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loggedIn, setLoggedIn] = useState(false);
+  
+  const [loading, setLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const checkUserSession = async () => {
+      try {
+        // The cookie is sent automatically by the browser due to `withCredentials: true`
+        const { data } = await axios.get(`${API_URL}/api/auth/me`, { withCredentials: true });
+        if (data) {
+          setCurrentUser(data);
+          setLoggedIn(true);
+        }
+      } catch (error) {
+    
+        setCurrentUser(null);
+        setLoggedIn(false);
+        console.log("No active session or session check failed.");
+      } finally {
+      
+        setLoading(false);
+      }
+    };
+
+    checkUserSession();
+  }, []); 
+
 
   const handleLogin = (user) => {
     setCurrentUser(user);
     setLoggedIn(true);
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
-
-    // Set theme based on user prefs or system
-    const userTheme = user.preferences?.theme || 'system';
-    const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    setDarkMode(userTheme === 'dark' || (userTheme === 'system' && systemPrefersDark));
+    
+    navigate('/');
   };
 
-  const handleLogout = () => {
-    setCurrentUser(null);
-    setLoggedIn(false);
-    setDarkMode(false);
-    localStorage.removeItem(USER_KEY);
+  const handleLogout = async () => {
+    try {
+      await axios.post(`${API_URL}/api/auth/logout`, {}, { withCredentials: true });
+    } catch (error) {
+      console.error("Logout API call failed", error);
+    } finally {
+      setCurrentUser(null);
+      setLoggedIn(false);
+      navigate('/login');
+    }
   };
 
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-  };
+  const toggleDarkMode = () => setDarkMode(!darkMode);
 
   useEffect(() => {
     document.body.className = darkMode ? 'bg-dark text-white' : 'bg-light text-dark';
   }, [darkMode]);
 
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  // After login redirect to original destination if present
-  useEffect(() => {
-    if (loggedIn && location.pathname === '/login') {
-      const from = location.state?.from || '/';
-      navigate(from, { replace: true });
-    }
-  }, [loggedIn, location.pathname]);
+  // ADDED: Render a loading indicator while checking the session
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <h2>Loading...</h2>
+      </div>
+    );
+  }
 
   return (
     <React.Suspense fallback={<div className="p-3">Loading...</div>}>
       <Routes>
         <Route
           path="/login"
-          element={<AuthForm onLogin={handleLogin} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />}
+          element={loggedIn ? <Navigate to="/" /> : <AuthForm onLogin={handleLogin} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />}
         />
         <Route
           path="/"
-          element={
-            <RequireAuth>
-              <ChatApp user={currentUser} onLogout={handleLogout} />
-            </RequireAuth>
-          }
+          element={<RequireAuth loggedIn={loggedIn}><ChatApp user={currentUser} onLogout={handleLogout} /></RequireAuth>}
         />
         <Route
           path="/settings"
-          element={
-            <RequireAuth>
-              <ChatApp user={currentUser} onLogout={handleLogout} initialShowSettings />
-            </RequireAuth>
-          }
+          element={<RequireAuth loggedIn={loggedIn}><ChatApp user={currentUser} onLogout={handleLogout} initialShowSettings /></RequireAuth>}
         />
         <Route
           path="/upgrade"
-          element={
-            <RequireAuth>
-              <ChatApp user={currentUser} onLogout={handleLogout} initialShowUpgradePlan />
-            </RequireAuth>
-          }
+          element={<RequireAuth loggedIn={loggedIn}><ChatApp user={currentUser} onLogout={handleLogout} initialShowUpgradePlan /></RequireAuth>}
         />
         <Route
           path="/help"
-          element={
-            <RequireAuth>
-              <ChatApp user={currentUser} onLogout={handleLogout} initialShowHelp />
-            </RequireAuth>
-          }
+          element={<RequireAuth loggedIn={loggedIn}><ChatApp user={currentUser} onLogout={handleLogout} initialShowHelp /></RequireAuth>}
         />
         <Route
           path="/checkout"
-          element={
-            <RequireAuth>
-              <CheckoutPage />
-            </RequireAuth>
-          }
+          element={<RequireAuth loggedIn={loggedIn}><CheckoutPage /></RequireAuth>}
         />
-        <Route path="*" element={<Navigate to={loggedIn ? '/' : '/login'} replace />} />
+        {/* CHANGED: Simplified the catch-all route */}
+        <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </React.Suspense>
   );

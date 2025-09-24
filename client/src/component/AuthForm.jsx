@@ -9,13 +9,15 @@ import SocialLoginModal from './SocialLoginModal';
 import ForgotPasswordModal from './ForgotPasswordModal';
 import ResetPasswordModal from './ResetPasswordModal';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
   const [isLoginView, setIsLoginView] = useState(true);
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  // REMOVED: `rememberMe` is no longer needed as sessions are handled by the backend cookie.
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -25,13 +27,17 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetInfo, setResetInfo] = useState({ show: false, email: null, token: null });
 
-  const [theme, setTheme] = useState(darkMode ? "dark" : "light"); // manage system/light/dark toggle
+  const [theme, setTheme] = useState(darkMode ? "dark" : "light");
+  const [emailValid, setEmailValid] = useState(null);
+  const [usernameValid, setUsernameValid] = useState(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const emailParam = params.get('email');
     const tokenParam = params.get('reset_token');
     if (emailParam && tokenParam) {
+      // NOTE: This client-side check is temporary. A real implementation
+      // would validate the token against the backend.
       const users = JSON.parse(localStorage.getItem('chatapp_users')) || [];
       if (users.some(u => u.email === emailParam)) {
         setResetInfo({ show: true, email: emailParam, token: tokenParam });
@@ -39,28 +45,6 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
     }
   }, []);
 
-  
-  useEffect(() => {
-    const rememberedUser = localStorage.getItem('chatapp_remember_user');
-    if (rememberedUser) {
-      try {
-        const user = JSON.parse(rememberedUser);
-        const users = JSON.parse(localStorage.getItem('chatapp_users')) || [];
-        const foundUser = users.find(u => u.id === user.id && u.email === user.email);
-
-        if (foundUser) {
-          onLogin(foundUser);
-        } else {
-          localStorage.removeItem('chatapp_remember_user');
-        }
-      } catch (e) {
-        console.error("Error parsing remembered user from localStorage:", e);
-        localStorage.removeItem('chatapp_remember_user');
-      }
-    }
-  }, [onLogin]);
-
-  // --- FULL BODY DARK/LIGHT MODE HANDLER ---
   useEffect(() => {
     const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     let shouldBeDark = darkMode;
@@ -74,9 +58,6 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
   const handleResetComplete = () => {
     window.location.href = "/";
   };
-
-  const [emailValid, setEmailValid] = useState(null);
-  const [usernameValid, setUsernameValid] = useState(null);
 
   const sendWelcomeEmail = (user) => {
     const templateParams = {
@@ -94,6 +75,7 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
   const handleSignup = async (e) => {
     e.preventDefault();
     setError(''); setSuccess(''); setIsLoading(true);
+
     if (!email || !username || !password) { setError('❌ All fields are required.'); setIsLoading(false); return; }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) { setError('❌ Please enter a valid email address.'); setIsLoading(false); return; }
@@ -104,55 +86,67 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
     const hasUpperCase = /[A-Z]/.test(password); const hasLowerCase = /[a-z]/.test(password); const hasNumbers = /\d/.test(password);
     if (!hasUpperCase || !hasLowerCase || !hasNumbers) { setError('❌ Password must contain an uppercase letter, a lowercase letter, and a number.'); setIsLoading(false); return; }
 
-    const users = JSON.parse(localStorage.getItem('chatapp_users')) || [];
-    if (users.some(user => user.email === email)) { setError('❌ An account with this email already exists.'); setIsLoading(false); return; }
+    try {
+      const config = { headers: { 'Content-Type': 'application/json' }, withCredentials: true };
+      await axios.post(
+        `${API_URL}/api/auth/register`,
+        { username, email, password },
+        config
+      );
 
-    const newUser = { id: Date.now(), email, username, password, createdAt: new Date().toISOString(), lastLogin: null, isActive: true, preferences: { theme: 'system', language: 'en', notifications: true } };
-    users.push(newUser);
-    localStorage.setItem('chatapp_users', JSON.stringify(users));
-    sendWelcomeEmail(newUser);
+      sendWelcomeEmail({ name: username, email: email });
+      setSuccess('🎉 Account created successfully! Please log in.');
+      setIsLoading(false);
 
-    setSuccess('🎉 Account created successfully! Redirecting to login...');
-    setIsLoading(false);
-    setTimeout(() => { onLogin(newUser); }, 1500);
+      setTimeout(() => {
+        setIsLoginView(true);
+        setError('');
+        setSuccess('');
+        setEmail(email);
+        setPassword('');
+        setUsername('');
+        setAgreeTerms(false);
+      }, 2500);
 
-    setTimeout(() => {
-      setIsLoginView(true);
-      setSuccess('Welcome! Please log in with your new account.');
-      setEmail('');
-      setUsername('');
-      setPassword('');
-      setAgreeTerms(false);
-      setTimeout(() => setSuccess(''), 3000);
-    }, 2500);
+    } catch (err) {
+      const errorMessage = err.response?.data?.message || 'An unexpected error occurred.';
+      setError(`❌ ${errorMessage}`);
+      setIsLoading(false);
+    }
   };
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError(''); setSuccess(''); setIsLoading(true);
     if (!email || !password) { setError('❌ Email and password are required.'); setIsLoading(false); return; }
-    const users = JSON.parse(localStorage.getItem('chatapp_users')) || [];
-    const foundUser = users.find(user => user.email === email && user.password === password);
 
-    if (foundUser) {
-      foundUser.lastLogin = new Date().toISOString(); foundUser.isActive = true;
-      const updatedUsers = users.map(user => user.id === foundUser.id ? foundUser : user);
-      localStorage.setItem('chatapp_users', JSON.stringify(updatedUsers));
-      if (rememberMe) {
-        localStorage.setItem('chatapp_remember_user', JSON.stringify({ email: foundUser.email, id: foundUser.id }));
-      } else {
-        localStorage.removeItem('chatapp_remember_user');
-      }
+    try {
+      const config = { headers: { 'Content-Type': 'application/json' }, withCredentials: true };
+      const { data } = await axios.post(
+        `${API_URL}/api/auth/login`,
+        { email, password },
+        config
+      );
+
       setSuccess('✅ Login successful! Welcome back!');
-      setTimeout(() => { onLogin(foundUser); }, 1500);
-    } else {
-      setError('❌ Invalid email or password. Please check your credentials.');
+      setTimeout(() => {
+        // CHANGED: Simply call onLogin with the user data from the backend.
+        // The cookie is already set by the server and will persist the session.
+        onLogin(data);
+      }, 1500);
+
+    } catch (err) {
+      const errorMessage = err.response?.data?.message || 'Invalid credentials.';
+      setError(`❌ ${errorMessage}`);
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const loginWithGoogle = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
+      // Note: This is a frontend-only implementation. For a full-stack app,
+      // you would send the tokenResponse.access_token to your backend to verify
+      // and create a session there.
       try {
         setIsLoading(true);
         setError('');
@@ -161,39 +155,11 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
           headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
         });
         const userProfile = res.data;
-
-        const users = JSON.parse(localStorage.getItem('chatapp_users')) || [];
-        let existingUser = users.find(user => user.email === userProfile.email);
-        let userToLogin;
-
-        if (!existingUser) {
-          setSuccess(`👋 Welcome, ${userProfile.name}! Creating your account...`);
-          const newUser = {
-            id: userProfile.sub,
-            email: userProfile.email,
-            name: userProfile.name,
-            provider: 'Google',
-            createdAt: new Date().toISOString(),
-            lastLogin: new Date().toISOString(),
-            isActive: true,
-            preferences: { theme: 'system', language: 'en', notifications: true }
-          };
-          users.push(newUser);
-          localStorage.setItem('chatapp_users', JSON.stringify(users));
-          sendWelcomeEmail(newUser);
-          userToLogin = newUser;
-        } else {
-          setSuccess(`✅ Welcome back, ${existingUser.name || existingUser.username}!`);
-          existingUser.lastLogin = new Date().toISOString();
-          localStorage.setItem('chatapp_users', JSON.stringify(users.map(u => u.id === existingUser.id ? existingUser : u)));
-          userToLogin = existingUser;
-        }
-        if (rememberMe || !isLoginView) {
-          localStorage.setItem('chatapp_remember_user', JSON.stringify({ email: userToLogin.email, id: userToLogin.id }));
-        }
-
+        // The logic below uses localStorage and should be replaced with backend calls in the future.
+        const userToLogin = { id: userProfile.sub, email: userProfile.email, username: userProfile.name };
+        setSuccess(`✅ Welcome, ${userProfile.name}!`);
         setTimeout(() => {
-          onLogin(userToLogin);
+          onLogin(userToLogin); // Placeholder login
           setIsLoading(false);
         }, 1500);
       } catch (err) {
@@ -212,19 +178,19 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
   const handleSocialLoginSuccess = (provider) => {
     setIsModalOpen(false);
     setSuccess(`🎉 Successfully authenticated with ${provider}!`);
-    const socialUser = { id: Date.now(), email: `user@${provider.toLowerCase()}.com`, username: `${provider} User`, provider, createdAt: new Date().toISOString(), lastLogin: new Date().toISOString(), isActive: true, preferences: { theme: 'system', language: 'en', notifications: true } };
-    const users = JSON.parse(localStorage.getItem('chatapp_users')) || [];
-    if (!users.some(u => u.provider === provider)) { users.push(socialUser); localStorage.setItem('chatapp_users', JSON.stringify(users)); }
-
-    localStorage.setItem('chatapp_remember_user', JSON.stringify({ email: socialUser.email, id: socialUser.id }));
-
+    const socialUser = {
+      id: Date.now(),
+      email: `user@${provider.toLowerCase()}.com`,
+      username: `${provider} User`,
+    };
+    // This is a placeholder. Real social login requires backend integration.
     setTimeout(() => { onLogin(socialUser); }, 1500);
   };
 
   const switchView = (view) => {
     setIsLoginView(view === 'login');
     setError(''); setSuccess(''); setEmail(''); setUsername(''); setPassword('');
-    setAgreeTerms(false); setRememberMe(false); setEmailValid(null); setUsernameValid(null);
+    setAgreeTerms(false); setEmailValid(null); setUsernameValid(null);
   };
 
   const validateEmail = (email) => {
@@ -236,21 +202,9 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
     setUsernameValid(username.length >= 3 && /^[a-zA-Z0-9_]+$/.test(username));
   };
 
-  // --- MODIFIED useEffect for pre-filling email if remembered ---
   useEffect(() => {
-    const rememberedUser = localStorage.getItem('chatapp_remember_user');
-    if (rememberedUser && isLoginView) {
-      try {
-        const user = JSON.parse(rememberedUser);
-        setEmail(user.email);
-        setRememberMe(true);
-      } catch (e) {
-        console.error("Error parsing remembered user for pre-fill:", e);
-        localStorage.removeItem('chatapp_remember_user');
-      }
-    } else {
+    if (!isLoginView) {
       setEmail('');
-      setRememberMe(false);
     }
   }, [isLoginView]);
 
@@ -277,8 +231,7 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
 
   return (
     <>
-    <div className="d-flex align-items-center justify-content-center gradient-bg" style={{ minHeight: '100vh',padding: "20px",boxSizing: "border-box", overflow: 'hidden' }}>
-
+      <div className="d-flex align-items-center justify-content-center gradient-bg" style={{ minHeight: '100vh', padding: "20px", boxSizing: "border-box", overflow: 'hidden' }}>
         <div className="container-fluid">
           <div className="row justify-content-center">
             <div className="col-lg-6 d-none d-lg-flex align-items-center justify-content-center">
@@ -292,18 +245,17 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
             </div>
             <div className="col-lg-6 col-md-8 col-sm-10">
               <motion.div
-  initial={{ x: 50, opacity: 0 }}
-  animate={{ x: 0, opacity: 1 }}
-  transition={{ duration: 0.5, delay: 0.2 }}
-  className={`p-4 shadow-lg rounded-4 ${darkMode ? 'bg-dark text-white' : 'bg-white'}`}
-  style={{
-    width: "100%",
-    maxWidth: '420px',
-    maxHeight: '92vh',      
-    overflow: "hidden"       
-  }}
->
-
+                initial={{ x: 50, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className={`p-4 shadow-lg rounded-4 ${darkMode ? 'bg-dark text-white' : 'bg-white'}`}
+                style={{
+                  width: "100%",
+                  maxWidth: '420px',
+                  maxHeight: '92vh',
+                  overflow: "hidden"
+                }}
+              >
                 <div className="d-flex mb-4 rounded-3 p-1" style={{ backgroundColor: darkMode ? '#333' : '#f8f9fa' }}>
                   <button className={`btn flex-fill rounded-3 fw-semibold ${isLoginView ? 'btn-primary text-white' : (darkMode ? 'text-white' : 'text-dark')}`} style={{ background: isLoginView ? 'linear-gradient(to right, #3b82f6, #8b5cf6)' : 'none', border: 'none' }} onClick={() => switchView('login')}>LOG IN</button>
                   <button className={`btn flex-fill rounded-3 fw-semibold ${!isLoginView ? 'btn-primary text-white' : (darkMode ? 'text-white' : 'text-dark')}`} style={{ background: !isLoginView ? 'linear-gradient(to right, #3b82f6, #8b5cf6)' : 'none', border: 'none' }} onClick={() => switchView('signup')}>SIGN UP</button>
@@ -354,7 +306,6 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
                         }
                       </button>
                     </div>
-
                     {!isLoginView && password && (
                       <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-2">
                         <div className="d-flex justify-content-between align-items-center mb-1">
@@ -367,9 +318,9 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
                   </div>
 
                   {isLoginView ? (
-                    <div className="d-flex justify-content-between align-items-center mb-3">
-                      <div className="form-check"><input type="checkbox" className="form-check-input" id="rememberMe" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} /><label className="form-check-label small" htmlFor="rememberMe">Remember Me</label></div>
-                      <button type="button" className="btn btn-link small text-decoration-none p-0" onClick={() => setShowForgotPassword(true)}>Forgot Password?</button>
+                    // CHANGED: Removed the "Remember Me" checkbox.
+                    <div className="d-flex justify-content-end align-items-center mb-3">
+                       <button type="button" className="btn btn-link small text-decoration-none p-0" onClick={() => setShowForgotPassword(true)}>Forgot Password?</button>
                     </div>
                   ) : (
                     <div className="mb-3 form-check"><input type="checkbox" className="form-check-input" id="agreeTerms" checked={agreeTerms} onChange={(e) => setAgreeTerms(e.target.checked)} required /><label className="form-check-label small" htmlFor="agreeTerms">I agree to the <a href="#terms" className="text-decoration-none">Terms & Conditions</a></label></div>

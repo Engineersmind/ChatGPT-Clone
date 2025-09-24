@@ -85,11 +85,20 @@ exports.loginUser = async (req, res) => {
   }
 
   try {
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail }).select('+password');
 
-    if (!user || !(await user.matchPassword(password))) {
+    if (!user || !user.password) {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
+
+    const isMatch = await user.matchPassword(password);
+
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid email or password.' });
+    }
+
+    user.password = undefined;
 
     return sendTokenResponse(user, res);
 
@@ -110,5 +119,25 @@ exports.logoutUser = (req, res) => {
     })
     .status(200)
     .json({ message: 'Logged out successfully.' });
+};
 
+exports.getCurrentUser = async (req, res) => {
+  const userId = req.user?.id || req.user?._id;
+
+  if (!userId) {
+    return res.status(401).json({ message: 'Not authenticated.' });
+  }
+
+  try {
+    const user = await User.findById(userId).select('-password');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    return res.status(200).json(buildUserPayload(user));
+  } catch (error) {
+    console.error('Error fetching current user:', error);
+    return res.status(500).json({ message: 'Server error while fetching user.' });
+  }
 };

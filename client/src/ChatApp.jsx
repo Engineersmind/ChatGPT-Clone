@@ -525,7 +525,7 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
   return (
     <div
       className={`d-flex ${darkMode ? "bg-dark text-white" : "bg-light text-dark"}`}
-      style={{ height: "100vh", overflow: "hidden", backgroundColor: "#C9D6DF" }}
+      style={{ height: "100vh", overflow: "hidden" }}
     >
       {showUpgradePlan ? (
         <UpgradePlan

@@ -218,8 +218,11 @@ exports.updateUserPlan = async (req, res) => {
   }
 };
 
+// const bcrypt = require('bcryptjs');
+
 exports.resetPasswordWithToken = async (req, res) => {
   const { email, password } = req.body || {};
+  console.log("Reset Password Request:", req.body);
 
   if (!email || !password) {
     return res.status(400).json({ message: 'Email and new password are required.' });
@@ -234,17 +237,23 @@ exports.resetPasswordWithToken = async (req, res) => {
     const user = await User.findOne({ email: normalizedEmail }).select('+password');
 
     if (!user) {
-      // Return generic success message to avoid leaking which emails exist.
       return res.status(200).json({ message: 'If an account exists for that email, the password has been updated.' });
     }
 
+    // Change provider first if needed
+    if (user.provider !== "local") {
+      user.provider = "local";
+    }
+
+    // Set new password **as plain text**, pre-save hook will hash it automatically
     user.password = password;
-    await user.save();
+
+    await user.save(); // Mongoose pre-save will hash password
 
     return res.status(200).json({ message: 'Password updated successfully.' });
   } catch (error) {
     console.error('Error resetting password:', error);
     return res.status(500).json({ message: 'Server error while resetting password.' });
-
   }
 };
+

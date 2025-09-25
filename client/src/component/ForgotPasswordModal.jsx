@@ -47,7 +47,14 @@ export default function ForgotPasswordModal({ darkMode, onClose }) {
       // IMPORTANT: Ensure this is your FORGOT PASSWORD template ID, not the welcome email one.
       const templateId = import.meta.env.VITE_EMAILJS_FORGOT_PASSWORD_TEMPLATE_ID; 
       const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
- 
+
+      if (!serviceId || !templateId || !publicKey) {
+        console.error('EmailJS configuration missing. Check VITE_EMAILJS_SERVICE_ID, VITE_EMAILJS_FORGOT_PASSWORD_TEMPLATE_ID, and VITE_EMAILJS_PUBLIC_KEY.');
+        setError('Password reset email service is not configured. Please contact support.');
+        setIsLoading(false);
+        return;
+      }
+
       // 5. Send the email using EmailJS.
       emailjs.send(serviceId, templateId, templateParams, publicKey)
         .then(() => {

@@ -13,5 +13,8 @@ const apiClient = axios.create({
 export const registerUser = (payload) => apiClient.post('/api/auth/register', payload);
 export const loginUser = (payload) => apiClient.post('/api/auth/login', payload);
 export const logoutUser = () => apiClient.post('/api/auth/logout');
+export const updateUserPlan = (pro) => apiClient.patch('/api/auth/plan', { pro: pro ? 1 : 0 });
+export const resetPassword = ({ email, password, token }) =>
+  apiClient.put('/api/auth/password', { email, password, token });
 
 export default apiClient;

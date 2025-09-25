@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { motion as Motion } from 'framer-motion';
 import { Lock, Eye, EyeOff } from 'lucide-react';
 import './SocialLoginModal.css';
- 
-export default function ResetPasswordModal({ darkMode, email, onComplete }) {
+import { resetPassword as apiResetPassword } from '../services/authService';
+
+export default function ResetPasswordModal({ darkMode, email, token, onComplete }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -11,51 +12,34 @@ export default function ResetPasswordModal({ darkMode, email, onComplete }) {
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
  
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
-    setIsLoading(true);
  
     if (password.length < 6) {
       setError('Password must be at least 6 characters long.');
-      setIsLoading(false);
       return;
     }
     if (password !== confirmPassword) {
       setError('Passwords do not match.');
-      setIsLoading(false);
       return;
     }
- 
-    let users = JSON.parse(localStorage.getItem('chatapp_users')) || [];
-    const userIndex = users.findIndex(user => user.email === email);
- 
-    if (userIndex === -1) {
-      setError('An error occurred. User not found.');
-      setIsLoading(false);
-      return;
-    }
- 
-    // <<<< THIS IS THE FINAL, CORRECTED LOGIC >>>>
-    // 1. Create a new, updated user object with the new password.
-    const updatedUser = { ...users[userIndex], password: password };
- 
-    // 2. Create a new array of all users, replacing the old user with the updated one.
-    const updatedUsers = users.map(user =>
-      user.id === updatedUser.id ? updatedUser : user
-    );
- 
-    // 3. Save the NEW array with the corrected password back to localStorage.
-    localStorage.setItem('chatapp_users', JSON.stringify(updatedUsers));
-    // <<<< END OF FIX >>>>
- 
-    setSuccess('Password has been reset successfully! You will be redirected to the login page shortly.');
-    setIsLoading(false);
- 
-    setTimeout(() => {
+
+    setIsLoading(true);
+
+    try {
+      await apiResetPassword({ email, password, token });
+      setSuccess('Password has been reset successfully! You will be redirected to the login page shortly.');
+      setTimeout(() => {
         onComplete();
-    }, 3000);
+      }, 3000);
+    } catch (err) {
+      const message = err?.response?.data?.message || 'Failed to reset password. Please try again.';
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
   };
  
   return (

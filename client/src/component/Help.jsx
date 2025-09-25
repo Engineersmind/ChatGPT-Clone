@@ -1,5 +1,5 @@
 import React from 'react';
- 
+
 export default function HelpModal({ darkMode, isOpen, onClose }) {
   if (!isOpen) return null;
   return (
@@ -17,7 +17,7 @@ export default function HelpModal({ darkMode, isOpen, onClose }) {
         zIndex: 3000,
         padding: '16px'
       }}
-    //   onClick={onClose}
+      onClick={onClose}
     >
       <div
         className={`p-4 rounded-3 shadow ${darkMode ? 'bg-dark text-white' : 'bg-white text-dark'}`}
@@ -37,12 +37,12 @@ export default function HelpModal({ darkMode, isOpen, onClose }) {
           <li>Need to resume where you left? Login persistence uses your local browser storage.</li>
         </ul>
         <p
-          className={`small mb-1 ${darkMode ? 'text-white-50' : 'text-muted'}`}
+          className={`small mb-1 ${darkMode ? 'text-white-50' : 'text-black-50'}`}
         >
           Support: <a href="mailto:support@quantumchat.com">support@quantumchat.com</a>
         </p>
         <p
-          className={`small ${darkMode ? 'text-white-50' : 'text-muted'}`}
+          className={`small ${darkMode ? 'text-white-50' : 'text-black-50'}`}
         >
           Version: 1.0.0
         </p>

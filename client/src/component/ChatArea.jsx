@@ -1,7 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-
-import { motion } from "framer-motion";
 import {
   Send,
   Sun,
@@ -26,13 +23,12 @@ export default function ChatArea({
   message,
   setMessage,
   onSendMessage,
-  currentUser,
   isLoading = false,
   onCancelStream,
   chatTitle,
-  onNewChat
+  activeChatId, // optional prop; if not provided overlay still works
+  onNewChat,
 }) {
-  const navigate = useNavigate();
   const [copiedStates, setCopiedStates] = useState({});
   const [likedStates, setLikedStates] = useState({});
   const [dislikedStates, setDislikedStates] = useState({});
@@ -46,13 +42,13 @@ export default function ChatArea({
   const messagesEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
 
-  const stripMarkdown = (text) => {
-    return text
-      .replace(/(\*|_|~|`|#|>|-|\+|\[|\])/g, "")
-      .replace(/\!\[.*?\]\(.*?\)/g, "")
-      .replace(/\[([^\]]+)\]\([^\)]+\)/g, "$1");
-  };
+  const stripMarkdown = (text) =>
+    text
+      .replace(/[*_~`#>+-]/g, "")
+      .replace(/!\[.*?\]\(.*?\)/g, "")
+      .replace(/\[([^\]]+)]\([^)]*\)/g, "$1");
 
+  //---- Clipboard ----//
   const copyToClipboard = async (text, msgId) => {
     try {
       const cleanText = stripMarkdown(text);
@@ -92,39 +88,46 @@ export default function ChatArea({
     }
   };
 
+  //---- Text-to-Speech ----//
   const handleReadAloud = (msgId, msgText) => {
+
     if (speakingStates[msgId]) {
+
       synthRef.current.cancel();
+
       setSpeakingStates((prev) => ({ ...prev, [msgId]: false }));
+
       return;
+
     }
 
     const utterance = new SpeechSynthesisUtterance(stripMarkdown(msgText));
+
     utterance.onend = () => {
+
       setSpeakingStates((prev) => ({ ...prev, [msgId]: false }));
+
     };
 
     synthRef.current.cancel();
+
     synthRef.current.speak(utterance);
+
     setSpeakingStates((prev) => ({ ...prev, [msgId]: true }));
+
   };
 
   useEffect(() => {
-    return () => synthRef.current.cancel();
+    const synth = synthRef.current;
+    return () => {
+      synth?.cancel();
+    };
   }, []);
 
 
-  const inputRef = useRef();
-
-useEffect(() => {
-  if (inputRef.current) {
-    inputRef.current.style.setProperty('--placeholder-color', darkMode ? 'cyan' : '#888');
-  }
-}, [darkMode]);
-
   const handleSuggestedClick = (text) => onSendMessage(text);
 
-  const handleSaveEdit = (msgId) => {
+  const handleSaveEdit = () => {
     if (editText.trim()) {
       onSendMessage(editText);
     }
@@ -166,7 +169,6 @@ useEffect(() => {
         width: "100%",
         position: "relative",
         height: "100vh",
-        
       }}
     >
       {/* HEADER */}
@@ -186,14 +188,10 @@ useEffect(() => {
           {sidebarCollapsed && (
             <>
               <img
-              onClick={() => {
-            onNewChat();        // your existing reset function
-            navigate("/chat");  // ✅ reset URL to /chat
-          }}
-              
                 src={gptIcon}
-                alt="QuantumChat Logo"
-                style={{ width: "24px", height: "24px",cursor: 'pointer' }}
+                alt="ChatClone Logo"
+                onClick={onNewChat}
+                style={{ width: "24px", height: "24px" , cursor: 'pointer'}}
               />
               <h2
                 className="h5 fw-bold mb-0 text-success"
@@ -237,8 +235,24 @@ useEffect(() => {
         >
           <button
             onClick={toggleDarkMode}
-            className={`btn rounded-3 ${darkMode ? "btn-outline-light" : "btn-outline-secondary"
-              }`}
+            className="btn border-0"
+            style={{
+              padding: '8px 12px',
+              backgroundColor: darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+              color: darkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.5)',
+              borderRadius: '8px',
+              transition: 'all 0.2s ease-in-out',
+              border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)'}`,
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = darkMode ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.06)';
+              e.target.style.color = darkMode ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.7)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)';
+              e.target.style.color = darkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.5)';
+            }}
+            title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
           >
             {darkMode ? <Sun size={18} /> : <Moon size={18} />}
           </button>
@@ -247,7 +261,6 @@ useEffect(() => {
 
       {/* Input Centered for New Chat */}
       {messages.length === 0 ? (
-
         <div
           style={{
             flexGrow: 1,
@@ -255,48 +268,76 @@ useEffect(() => {
             justifyContent: "center",
             alignItems: "center",
             width: "100%",
+            padding: '0 16px',
           }}
         >
           <div
             style={{
               display: "flex",
-              flexDirection: "column",
+              flexDirection: 'column',
+              gap: 16,
               width: "70%",
               minWidth: 300,
-              maxWidth: 800,
+              maxWidth: 760,
               justifyContent: "center",
-              alignItems: "center",
-              gap: "10px",
+              alignItems: 'center',
             }}
           >
-            {/* Agenda text */}
-            <h5 className="text-center" style={{ marginBottom: "8px" }}>
-              What’s your agenda today?
-            </h5>
-
-            {/* Input and button */}
-            <div className="d-flex gap-2 align-items-center w-100">
-              <input
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !isLoading) {
-                    if (message.trim()) {
-                      onSendMessage(message);
+            <div style={{ textAlign: 'center', maxWidth: 560 }}>
+              <h1 style={{
+                fontSize: '1.9rem',
+                margin: 0,
+                fontWeight: 600,
+                background: 'linear-gradient(90deg,#3b82f6,#8b5cf6)',
+                WebkitBackgroundClip: 'text',
+                color: 'transparent'
+              }}>
+                Hello, how can I help you?
+              </h1>
+              <p style={{
+                marginTop: 10,
+                marginBottom: 0,
+                fontSize: 15,
+                lineHeight: 1.5,
+                color: darkMode ? '#a1a1aa' : '#4b5563'
+              }}>
+                Ask me anything – debugging code, generating ideas, refining prompts, or exploring a new topic. Just start typing below.
+              </p>
+            </div>
+            <div className="d-flex gap-2 align-items-center w-100" style={{ position: 'relative', maxWidth: 760 }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <input
+                  key={(activeChatId || 'new') + '-top'}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !isLoading) {
+                      if (message.trim()) {
+                        onSendMessage(message);
+                      }
                     }
-                  }
-                }}
-                placeholder="Ask Me anything..."
-                disabled={isLoading}
-                className={`form-control rounded-3 ${darkMode ? "bg-dark text-white border-secondary" : ""
-                  }`}
-                style={{
-                  width: "100%",
-                  color: darkMode ? "white" : "black",
-    '--placeholder-color': darkMode ? 'cyan' : '#888'
-                }}
-                autoFocus
-              />
+                  }}
+                  disabled={isLoading}
+                  className={`form-control rounded-3 ${darkMode ? "bg-dark text-white border-secondary" : ""}`}
+                  style={{ width: "100%", paddingLeft: 12, caretColor: darkMode ? '#fff' : '#111' }}
+                  autoFocus
+                  autoComplete="off"
+                />
+                {!message && !isLoading && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      left: 18,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      pointerEvents: 'none',
+                      color: darkMode ? '#9ca3af' : '#6b7280',
+                      fontSize: 14,
+                      userSelect: 'none'
+                    }}
+                  >Type your message...</span>
+                )}
+              </div>
               <button
                 onClick={() => {
                   if (!isLoading && message.trim()) onSendMessage(message);
@@ -329,23 +370,29 @@ useEffect(() => {
               const isAssistant = msg.role !== "user";
               const suggested = isAssistant ? msg.suggested || [] : [];
               return (
-                <motion.div
+                <div
                   key={i}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
                   className={`p-3 rounded-4 shadow-sm mb-3 ${msg.role === "user"
-                    ? "ms-auto text-white"
+                    ? "ms-auto"
                     : msg.isError
                       ? "bg-danger bg-opacity-10 border border-danger"
-                      : darkMode
-                        ? "bg-dark text-white border border-secondary"
-                        : "bg-light"
+                      : ""
                     }`}
                   style={{
                     maxWidth: "80%",
-                    background: darkMode ? "#666" : "#8e9296ff",
-                    color: darkMode ? "#d42d2dff" : "#164048",
+                    background: msg.isError
+                      ? (darkMode ? 'rgba(239,68,68,0.12)' : 'rgba(239,68,68,0.08)')
+                      : msg.role === 'user'
+                        ? (darkMode ? '#2d3b46' : '#ffffff')
+                        : (darkMode ? '#232b33' : '#f5f7fa'),
+                    color: darkMode ? (msg.role === 'user' ? '#f1f5f9' : '#e2e8f0') : '#1f2937',
+                    border: '1px solid',
+                    borderColor: msg.isError
+                      ? (darkMode ? '#b91c1c' : '#ef4444')
+                      : msg.role === 'user'
+                        ? (darkMode ? '#3c4954' : '#e2e8f0')
+                        : (darkMode ? '#313c46' : '#e3e8ee'),
+                    boxShadow: darkMode ? '0 1px 2px rgba(0,0,0,0.4)' : '0 1px 2px rgba(0,0,0,0.08)'
                   }}
                 >
                   <div className="fw-medium">
@@ -357,7 +404,7 @@ useEffect(() => {
                           className="form-control form-control-sm"
                         />
                         <button
-                          onClick={() => handleSaveEdit(msgId)}
+                          onClick={handleSaveEdit}
                           className="btn btn-sm btn-success"
                         >
                           Save
@@ -382,14 +429,8 @@ useEffect(() => {
                     {msg.isStreaming && <span className="typing-cursor">|</span>}
                   </div>
                   <div
-                    className={`small mt-1 ${msg.role === "user"
-                      ? "text-white-50"
-                      : msg.isError
-                        ? "text-danger"
-                        : darkMode
-                          ? "text-light opacity-75"
-                          : "text-muted"
-                      }`}
+                    className={`small mt-1 ${darkMode ? 'text-white-50' : 'text-black-50'}`}
+                    style={{ letterSpacing: '.25px', opacity: 0.8 }}
                   >
                     {msg.time}
                     {msg.isError ? " • Error" : ""}
@@ -404,6 +445,9 @@ useEffect(() => {
                       >
                         {copiedStates[msgId] ? "Copied!" : <Copy size={14} />}
                       </button>
+
+
+
                       <button
                         onClick={() => toggleLike(msgId)}
                         className={`btn btn-sm ${likedStates[msgId]
@@ -433,6 +477,7 @@ useEffect(() => {
                       >
                         <Send size={14} />
                       </button>
+
                       <button
                         onClick={() => handleReadAloud(msgId, msg.text)}
                         className={`btn btn-sm ${darkMode ? "btn-outline-light" : "btn-outline-secondary"
@@ -444,9 +489,12 @@ useEffect(() => {
                           <Volume2 size={14} />
                         )}
                       </button>
+
+
+
                     </div>
                   )}
-                  {msg.role === "user" && editingMsgId !== msgId && (
+                  {/* {msg.role === "user" && editingMsgId !== msgId && (
                     <div className="d-flex mt-2">
                       <button
                         onClick={() => {
@@ -459,7 +507,7 @@ useEffect(() => {
                         <Edit3 size={14} /> Edit
                       </button>
                     </div>
-                  )}
+                  )} */}
                   {isAssistant && suggested.length > 0 && (
                     <div className="d-flex gap-2 mt-2 flex-wrap">
                       {suggested.map((s, idx) => (
@@ -473,15 +521,15 @@ useEffect(() => {
                       ))}
                     </div>
                   )}
-                </motion.div>
+                </div>
               );
             })}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* ✅ Down Arrow only if scrollable and NOT at bottom */}
-          {messages.length > 0 && isScrollable && showScrollDown && (
-            <motion.button
+          {/*  Down Arrow only if scrollable and NOT at bottom will be impalement */}
+{messages.length > 0 && isScrollable && showScrollDown && (
+            <button
               onClick={scrollToBottom}
               className={`btn rounded-circle shadow ${darkMode ? "btn-light text-dark" : "btn-dark text-white"
                 }`}
@@ -498,14 +546,12 @@ useEffect(() => {
                 justifyContent: "center",
                 zIndex: 1000,
               }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
             >
-              
               <ArrowDown size={20} />
-            </motion.button>
+            </button>
           )}
+
+
 
           {/* Input at bottom */}
           <div
@@ -517,24 +563,40 @@ useEffect(() => {
             }}
           >
             <div style={{ width: "70%", minWidth: 300, maxWidth: 800 }}>
-              <div className="d-flex gap-2 align-items-center">
-                <input
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !isLoading) {
-                      if (message.trim()) {
-                        onSendMessage(message);
+              <div className="d-flex gap-2 align-items-center" style={{ position: 'relative', flex: 1 }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <input
+                    key={(activeChatId || 'new') + '-bottom'}
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !isLoading) {
+                        if (message.trim()) {
+                          onSendMessage(message);
+                        }
                       }
-                    }
-                  }}
-                  placeholder="Ask Me anything..."
-                  disabled={isLoading}
-                  className={`form-control rounded-3 ${darkMode ? "bg-dark text-white border-secondary" : ""
-                    }`}
-                  style={{ width: "100%" }}
-                  autoFocus
-                />
+                    }}
+                    disabled={isLoading}
+                    className={`form-control rounded-3 ${darkMode ? "bg-dark text-white border-secondary" : ""}`}
+                    style={{ width: "100%", paddingLeft: 12, caretColor: darkMode ? '#fff' : '#111' }}
+                    autoFocus
+                    autoComplete="off"
+                  />
+                  {!message && !isLoading && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        left: 18,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        pointerEvents: 'none',
+                        color: darkMode ? '#9ca3af' : '#6b7280',
+                        fontSize: 14,
+                        userSelect: 'none'
+                      }}
+                    >Type your message...</span>
+                  )}
+                </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                   {isLoading ? (
                     <>

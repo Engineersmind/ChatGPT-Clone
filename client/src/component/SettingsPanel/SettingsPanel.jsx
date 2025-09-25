@@ -98,7 +98,6 @@ const SettingsPanel = ({
       if (prev?.appearance?.theme === incoming) return prev;
       return { ...prev, appearance: { ...prev.appearance, theme: incoming } };
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [theme]);
 
   const [expandedSections, setExpandedSections] = useState({

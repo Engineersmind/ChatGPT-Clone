@@ -36,6 +36,7 @@ export default function Sidebar({
   onArchive,
   onDelete,
   onShowUpgradePlan,
+  onHelp,
   currentPlan
 }) {
   const navigate = useNavigate();
@@ -44,6 +45,9 @@ export default function Sidebar({
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredChats, setFilteredChats] = useState(chats);
   const [openDropdownChatId, setOpenDropdownChatId] = useState(null);
+  const [renamingChatId, setRenamingChatId] = useState(null);
+  const [renameValue, setRenameValue] = useState("");
+  const renameInputRef = useRef(null);
 
   const scrollContainerRef = useRef(null);
   const prevChatsLength = useRef(chats.length);
@@ -68,6 +72,14 @@ export default function Sidebar({
     prevChatsLength.current = chats.length;
   }, [chats]);
 
+  // Focus rename input when entering rename mode
+  useEffect(() => {
+    if (renamingChatId && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [renamingChatId]);
+
   // ✅ Close user menu on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -85,20 +97,6 @@ export default function Sidebar({
 
   const shouldShowFull = !isCollapsed;
   const sidebarWidth = shouldShowFull ? '280px' : '60px';
-
-  const navButtonStyle = {
-    background: 'none',
-    border: 'none',
-    transition: 'background-color 0.2s',
-    width: '100%',
-    textAlign: 'start',
-    padding: '6px 12px',
-    borderRadius: '0.5rem',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    cursor: 'pointer'
-  };
 
   const handleHover = (e) => {
     e.target.style.backgroundColor = darkMode ? '#333' : '#f8f9fa';
@@ -214,7 +212,6 @@ export default function Sidebar({
           </div>
         )}
 
-      
         
         {/* Recent Chats */}
         {shouldShowFull && (
@@ -229,7 +226,10 @@ export default function Sidebar({
                   .map((chat) => (
                     <div
                       key={chat.id}
-                      onClick={() => onSelectChat(chat.id)}
+                      onClick={() => {
+                        if (renamingChatId) return; // prevent navigation while renaming
+                        onSelectChat(chat.id);
+                      }}
                       className={`p-2 rounded-3 mb-2 d-flex justify-content-between align-items-center ${activeChatId === chat.id ? 'bg-primary text-white' : ''}`}
                       style={{
                         cursor: 'pointer',
@@ -247,14 +247,50 @@ export default function Sidebar({
                         }
                       }}
                     >
-                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {chat.title}
+                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flexGrow: 1 }}>
+                        {renamingChatId === chat.id ? (
+                          <input
+                            ref={renameInputRef}
+                            value={renameValue}
+                            maxLength={60}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                const trimmed = renameValue.trim();
+                                if (trimmed) {
+                                  onRename && onRename(chat.id, trimmed);
+                                }
+                                setRenamingChatId(null);
+                                setRenameValue("");
+                              } else if (e.key === 'Escape') {
+                                setRenamingChatId(null);
+                                setRenameValue("");
+                              }
+                            }}
+                            onBlur={() => {
+                              const trimmed = renameValue.trim();
+                              if (trimmed) {
+                                onRename && onRename(chat.id, trimmed);
+                              }
+                              setRenamingChatId(null);
+                              setRenameValue("");
+                            }}
+                            className={`form-control form-control-sm ${darkMode ? 'bg-dark text-white border-secondary' : ''}`}
+                            style={{ minWidth: 0 }}
+                            placeholder="Rename chat"
+                          />
+                        ) : (
+                          chat.title
+                        )}
                       </span>
                       <div style={{ position: 'relative', zIndex: 1000 }}>
                         <ChatActionsDropdown
                           chat={chat}
                           darkMode={darkMode}
-                          onRename={onRename}
+                          onRequestRename={() => {
+                            setRenamingChatId(chat.id);
+                            setRenameValue(chat.title || "");
+                          }}
                           onArchive={onArchive}
                           onDelete={onDelete}
                           openDropdownChatId={openDropdownChatId}
@@ -317,7 +353,7 @@ export default function Sidebar({
                           ? '#0d6efd'
                           : darkMode
                             ? '#2a2a2a'
-                            : '#de7b7bff',
+                            : '#efefefff',
                       color:
                         activeChatId === chat.id
                           ? 'white'
@@ -338,7 +374,7 @@ export default function Sidebar({
                       if (activeChatId !== chat.id) {
                         e.currentTarget.style.backgroundColor = darkMode
                           ? '#2a2a2a'
-                          : '#b17676ff';
+                          : '#ffffffff';
                       }
                       e.currentTarget.style.transform = 'scale(1)';
                     }}
@@ -424,7 +460,14 @@ export default function Sidebar({
                   >
                     <Settings size={14} className="me-2" /> Settings
                   </button>
-                  <button onClick={onShowHelp} className={`btn w-100 text-start mb-1 ${darkMode ? 'text-white' : 'text-dark'}`} style={{ background: 'none', border: 'none' }}>
+                  <button
+                    className={`btn w-100 text-start mb-1 ${darkMode ? 'text-white' : 'text-dark'}`}
+                    style={{ background: 'none', border: 'none' }}
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      onHelp && onHelp();
+                    }}
+                  >
                     <HelpCircle size={14} className="me-2" /> Help
                   </button>
                   <button
@@ -485,7 +528,14 @@ export default function Sidebar({
                   >
                     <Settings size={14} className="me-2" /> Settings
                   </button>
-                  <button className={`btn w-100 text-start mb-1 ${darkMode ? 'text-white' : 'text-dark'}`} style={{ background: 'none', border: 'none' }}>
+                  <button
+                    className={`btn w-100 text-start mb-1 ${darkMode ? 'text-white' : 'text-dark'}`}
+                    style={{ background: 'none', border: 'none' }}
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      onHelp && onHelp();
+                    }}
+                  >
                     <HelpCircle size={14} className="me-2" /> Help
                   </button>
                   <button onClick={onLogout} className="btn btn-outline-danger w-100 text-start" style={{ border: 'none' }}>

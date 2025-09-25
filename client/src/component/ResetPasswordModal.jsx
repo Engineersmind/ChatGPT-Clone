@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion as Motion } from 'framer-motion';
 import { Lock, Eye, EyeOff } from 'lucide-react';
 import './SocialLoginModal.css';
+import axios from 'axios';
  
 export default function ResetPasswordModal({ darkMode, email, onComplete }) {
   const [password, setPassword] = useState('');
@@ -11,56 +12,59 @@ export default function ResetPasswordModal({ darkMode, email, onComplete }) {
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
  
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-    setIsLoading(true);
- 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long.');
-      setIsLoading(false);
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
-      setIsLoading(false);
-      return;
-    }
- 
-    let users = JSON.parse(localStorage.getItem('chatapp_users')) || [];
-    const userIndex = users.findIndex(user => user.email === email);
- 
-    if (userIndex === -1) {
-      setError('An error occurred. User not found.');
-      setIsLoading(false);
-      return;
-    }
- 
-    // <<<< THIS IS THE FINAL, CORRECTED LOGIC >>>>
-    // 1. Create a new, updated user object with the new password.
-    const updatedUser = { ...users[userIndex], password: password };
- 
-    // 2. Create a new array of all users, replacing the old user with the updated one.
-    const updatedUsers = users.map(user =>
-      user.id === updatedUser.id ? updatedUser : user
-    );
- 
-    // 3. Save the NEW array with the corrected password back to localStorage.
-    localStorage.setItem('chatapp_users', JSON.stringify(updatedUsers));
-    // <<<< END OF FIX >>>>
- 
-    setSuccess('Password has been reset successfully! You will be redirected to the login page shortly.');
+  // import axios from 'axios';
+
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setError('');
+  setSuccess('');
+  setIsLoading(true);
+
+  if (password !== confirmPassword) {
+    setError("Passwords don't match.");
     setIsLoading(false);
- 
-    setTimeout(() => {
-        onComplete();
-    }, 3000);
-  };
+    return;
+  }
+
+  try {
+    // Get token and email from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('reset_token');
+    const emailFromUrl = urlParams.get('email')?.trim().toLowerCase(); // normalize
+
+    console.log('DEBUG FRONTEND: token from URL =', token);
+    console.log('DEBUG FRONTEND: email from URL =', emailFromUrl);
+
+    if (!token || !emailFromUrl) {
+      setError('Invalid or expired password reset link.');
+      setIsLoading(false);
+      return;
+    }
+
+    const response = await axios.post('http://localhost:5000/api/auth/reset-password', {
+      email: emailFromUrl,
+      token,           // send as "token"
+      newPassword: password,
+    });
+
+    console.log('DEBUG FRONTEND: response.data =', response.data);
+
+    setSuccess('Your password has been reset successfully!');
+    onComplete && onComplete(); // optional callback
+  } catch (err) {
+    console.error('DEBUG FRONTEND ERROR:', err.response?.data || err);
+    setError(err.response?.data?.message || 'Something went wrong. Please try again.');
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+
+
  
   return (
     <div className="modal-overlay">
-      <motion.div
+      <Motion.div
         initial={{ y: -50, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         className={`modal-content-wrapper ${darkMode ? 'bg-dark text-light' : 'bg-white text-dark'}`}
@@ -112,7 +116,7 @@ export default function ResetPasswordModal({ darkMode, email, onComplete }) {
             </form>
           )}
         </div>
-      </motion.div>
+      </Motion.div>
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { jsPDF } from "jspdf";
 export default function ChatActionsDropdown({
   chat,
   darkMode,
-  onRename,
+  onRequestRename,
   onArchive,
   onDelete,
   openDropdownChatId,
@@ -15,9 +15,7 @@ export default function ChatActionsDropdown({
   const [hoveredBtn, setHoveredBtn] = useState(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, direction: "down" });
   const btnRef = useRef(null);
-  // --- inline rename state
-  const [isRenaming, setIsRenaming] = useState(false);
-  const [renameValue, setRenameValue] = useState(chat.title || "");
+  // inline rename handled by parent sidebar now
   const showDropdown = openDropdownChatId === chat.id;
   const handleToggleDropdown = (e) => {
     e.stopPropagation();
@@ -42,7 +40,7 @@ export default function ChatActionsDropdown({
 
     chat.messages.forEach((msg) => {
       let sender = msg.role === "user" ? "User" : "AI";
-      let text = (msg.text || "").replace(/\*+/g, "").replace(/\"/g, "");
+  let text = (msg.text || "").replace(/\*+/g, "").replace(/"/g, "");
 
       if (y + lineHeight > pageHeight - 10) {
         doc.addPage();
@@ -78,24 +76,17 @@ export default function ChatActionsDropdown({
   };
 
   // --- updated: fixed copy link with chatId in URL ---
- const handleCopyLink = () => {
-  try {
-    if (!chat?.id) return;
-
-    // Generate link pointing to /chat with chatId
-    const link = `${window.location.origin}/chat?chatId=${encodeURIComponent(chat.id)}`;
-
-    navigator.clipboard.writeText(link)
-      .then(() => alert("Link copied to clipboard!"))
-      .catch(() => alert("Failed to copy link."));
-
-  } catch (err) {
-    console.error(err);
-    alert("Failed to copy link.");
-  }
-
-  handleCloseDropdown();
-};
+  const handleCopyLink = () => {
+    try {
+      const link = `${window.location.origin}/?chatId=${encodeURIComponent(chat.id)}`;
+      navigator.clipboard.writeText(link);
+      alert("Link copied to clipboard!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to copy link.");
+    }
+    handleCloseDropdown();
+  };
 
 
 
@@ -119,7 +110,7 @@ export default function ChatActionsDropdown({
       const top = direction === "down" ? rect.bottom + 2 : rect.top - dropdownHeight - 2;
       setDropdownPosition({ top, left: rect.left, direction });
     }
-  }, [showDropdown]);
+  }, [showDropdown, chat.id]);
 
   useEffect(() => {
   function handleClickOutside(e) {
@@ -174,47 +165,17 @@ export default function ChatActionsDropdown({
       >
         Copy Link
       </button>
-      {/* --- inline rename --- */}
-      {isRenaming ? (
-        <div style={{ padding: "5px" }}>
-          <input
-            type="text"
-            value={renameValue}
-            maxLength={15} 
-            onChange={(e) => setRenameValue(e.target.value.slice(0, 15))}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                if (renameValue.trim()) onRename(chat.id, renameValue.trim());
-                setIsRenaming(false);
-                handleCloseDropdown();
-              }
-              if (e.key === "Escape") {
-                setIsRenaming(false);
-                setRenameValue(chat.title || "");
-              }
-            }}
-            autoFocus
-            style={{
-              width: "100%",
-              padding: "4px",
-              borderRadius: "4px",
-              border: "1px solid #ccc"
-            }}
-          />
-        </div>
-      ) : (
-        <button
-          style={buttonStyle("rename")}
-          onMouseEnter={() => setHoveredBtn("rename")}
-          onMouseLeave={() => setHoveredBtn(null)}
-          onClick={() => {
-            setIsRenaming(true);
-            setRenameValue(chat.title || "");
-          }}
-        >
-          Rename
-        </button>
-      )}
+      <button
+        style={buttonStyle("rename")}
+        onMouseEnter={() => setHoveredBtn("rename")}
+        onMouseLeave={() => setHoveredBtn(null)}
+        onClick={() => {
+          onRequestRename && onRequestRename();
+          handleCloseDropdown();
+        }}
+      >
+        Rename
+      </button>
       <button
         style={buttonStyle("archive")}
         onMouseEnter={() => setHoveredBtn("archive")}

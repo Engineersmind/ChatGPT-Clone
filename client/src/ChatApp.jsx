@@ -1,12 +1,19 @@
 import React, { useEffect, useState, useRef } from "react";
 import Sidebar from "./component/sidebar";
 import ChatArea from "./component/ChatArea";
+import axios from "axios";
 import SettingsPanel from "./component/SettingsPanel/SettingsPanel";
 import { generateGeminiStreamResponse, isGeminiConfigured } from "./services/geminiService";
+import {
+  fetchChats,
+  createChat as createChatApi,
+  appendMessages as appendMessagesApi,
+  updateChat as updateChatApi,
+  deleteChat as deleteChatApi,
+} from "./services/chatService";
 import UpgradePlan from "./component/UpgradePlan";
 import HelpModal from "./component/Help";
-
-const STORAGE_KEY = "chat_history_v1";
+import { useNavigate } from 'react-router-dom';
 
 function titleFromText(text) {
   if (!text) return "Chat";
@@ -16,16 +23,65 @@ function titleFromText(text) {
   return title.charAt(0).toUpperCase() + title.slice(1);
 }
 
+const STORAGE_KEY = "chat_history_v1"; // legacy key kept for compatibility with cached state
+const MAX_TITLE_LENGTH = 15; // constraint for chat titles
+
 function nowTime() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export default function ChatApp({ user, onLogout }) {
+const normalizeMessage = (message) => ({
+  role: message?.role === "assistant" ? "assistant" : "user",
+  text: typeof message?.text === "string" ? message.text : "",
+  time:
+    typeof message?.time === "string" && message.time.trim().length
+      ? message.time
+      : new Date().toISOString(),
+  isStreaming: Boolean(message?.isStreaming) && !message?.isError ? true : false,
+  isError: Boolean(message?.isError),
+});
+
+const normalizeChat = (chat) => {
+  if (!chat) {
+    return {
+      id: undefined,
+      title: "New Chat",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      archived: false,
+      archivedAt: null,
+      messages: [],
+    };
+  }
+
+  const id = chat._id || chat.id;
+
+  return {
+    id,
+    title: chat.title || "New Chat",
+    createdAt: chat.createdAt || new Date().toISOString(),
+    updatedAt: chat.updatedAt || chat.createdAt || new Date().toISOString(),
+    archived: Boolean(chat.archived),
+    archivedAt: chat.archivedAt || null,
+    messages: Array.isArray(chat.messages) ? chat.messages.map(normalizeMessage) : [],
+  };
+};
+
+const sortChatsByRecency = (chats = []) =>
+  [...chats].sort((a, b) => {
+    const aDate = new Date(a.updatedAt || a.createdAt || 0).getTime();
+    const bDate = new Date(b.updatedAt || b.createdAt || 0).getTime();
+    return bDate - aDate;
+  });
+
+
+export default function ChatApp({ user, onLogout, initialShowSettings = false, initialShowUpgradePlan = false, initialShowHelp = false }) {
   const [darkMode, setDarkMode] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showUpgradePlan, setShowUpgradePlan] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
+  const [showSettings, setShowSettings] = useState(initialShowSettings);
+  const [showUpgradePlan, setShowUpgradePlan] = useState(initialShowUpgradePlan);
+  const [showHelp, setShowHelp] = useState(initialShowHelp);
+  // const [currentPlan, setCurrentPlan] = useState("Free Plan");
 
   const PLAN_STORAGE_KEY = "current_plan";
   const THEME_STORAGE_KEY = "chat_theme";
@@ -54,14 +110,9 @@ export default function ChatApp({ user, onLogout }) {
     localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
 
-  const [chats, setChats] = useState(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [chats, setChats] = useState([]);
+  const [loadingChats, setLoadingChats] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   const [activeChatId, setActiveChatId] = useState(null);
   const [input, setInput] = useState("");
@@ -69,144 +120,184 @@ export default function ChatApp({ user, onLogout }) {
   const [currentUser, setCurrentUser] = useState(user || { name: "User" });
   const isStreamingCancelled = useRef(false);
 
-  // ---------------- URL-based Settings Panel ----------------
-  useEffect(() => {
-    // Open SettingsPanel if URL is /settings
-    if (window.location.pathname === "/settings") {
-      setShowSettings(true);
-    }
-  }, []);
-
-  const openSettings = () => {
-    setShowSettings(true);
-    window.history.pushState(null, "", "/settings");
-  };
-
-  const closeSettings = () => {
-    setShowSettings(false);
-    window.history.pushState(null, "", "/");
-  };
-  // ---------------------------------------------------------
-
-  // ---------------- URL-based Upgrade Plan ----------------
-useEffect(() => {
-  // Open UpgradePlan if URL is /upgrade
-  if (window.location.pathname === "/upgrade") {
-    setShowUpgradePlan(true);
-  }
-}, []);
-
-const openUpgradePlan = () => {
-  setShowUpgradePlan(true);
-  window.history.pushState(null, "", "/upgrade");
-};
-
-const closeUpgradePlan = () => {
-  setShowUpgradePlan(false);
-  window.history.pushState(null, "", "/");
-};
-// ---------------------------------------------------------
-
-// ---------------- URL-based Help Panel ----------------
-useEffect(() => {
-  if (window.location.pathname === "/help") {
-    setShowHelp(true);
-  }
-}, []);
-
-const openHelp = () => {
-  setShowHelp(true);
-  window.history.pushState(null, "", "/help");
-};
-
-const closeHelp = () => {
-  setShowHelp(false);
-  window.history.pushState(null, "", "/");
-};
-// ---------------------------------------------------------
-
-
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (user) setCurrentUser(user);
   }, [user]);
 
+  // Sync panel open state with URL paths (simple approach)
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw);
-        setChats(Array.isArray(parsed) ? parsed : []);
-      } catch (e) {
-        console.warn("Failed to parse chat history:", e);
-        setChats([]);
-      }
-    }
+    if (initialShowSettings) setShowSettings(true);
+    if (initialShowUpgradePlan) setShowUpgradePlan(true);
+    if (initialShowHelp) setShowHelp(true);
+  }, [initialShowSettings, initialShowUpgradePlan, initialShowHelp]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+   const loadChats = async () => {
+  setLoadingChats(true);
+  setLoadError(null);
+  try {
+    const token = localStorage.getItem("authToken");
+    const response = await axios.get("http://localhost:5000/api/chats", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const normalizedChats = Array.isArray(response.data)
+      ? response.data.map(normalizeChat)
+      : [];
+    setChats(sortChatsByRecency(normalizedChats));
+  } catch (error) {
+    console.error('Failed to load chats:', error);
+    setLoadError(error.message || 'Failed to load chats.');
+    setChats([]);
+  } finally {
+    setLoadingChats(false);
+  }
+};
+
+
+    loadChats();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const chatIdParam = params.get("chatId");
-    if (chatIdParam) setActiveChatId(chatIdParam);
-  }, []);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(chats));
-  }, [chats]);
+    if (!chatIdParam) {
+      setActiveChatId(null);
+      return;
+    }
+
+    const exists = chats.some((c) => c.id === chatIdParam);
+    if (exists) {
+      setActiveChatId(chatIdParam);
+    } else if (!loadingChats) {
+      params.delete("chatId");
+      const query = params.toString();
+      window.history.replaceState(
+        null,
+        "",
+        query ? `${window.location.pathname}?${query}` : window.location.pathname
+      );
+      setActiveChatId(null);
+    }
+  }, [chats, loadingChats]);
+
 
   useEffect(() => {
     const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    let shouldBeDark = darkMode;
-    if (theme === "system") shouldBeDark = systemPrefersDark;
-    else if (theme === "dark") shouldBeDark = true;
-    else if (theme === "light") shouldBeDark = false;
-    setDarkMode(shouldBeDark);
+    let shouldBeDark = theme === "system" ? systemPrefersDark : theme === "dark";
+    if (theme === "light") {
+      shouldBeDark = false;
+    }
+    if (shouldBeDark !== darkMode) {
+      setDarkMode(shouldBeDark);
+    }
     document.body.className = shouldBeDark ? "bg-dark text-white" : "bg-light text-dark";
-  }, [theme]);
+  }, [theme, darkMode]);
 
-  const upsertChat = (newChat) => {
+  // Chat management
+  const upsertChat = (chat) => {
+    const normalized = normalizeChat(chat);
     setChats((prev) => {
-      const found = prev.find((c) => c.id === newChat.id);
-      if (found) return prev.map((c) => (c.id === newChat.id ? newChat : c));
-      else return [newChat, ...prev];
+      const exists = prev.some((c) => c.id === normalized.id);
+      const updated = exists
+        ? prev.map((c) => (c.id === normalized.id ? normalized : c))
+        : [normalized, ...prev];
+      return sortChatsByRecency(updated);
     });
   };
 
   const appendMessageToChat = (chatId, message) => {
-    setChats((prev) =>
-      prev.map((c) => (c.id !== chatId ? c : { ...c, messages: [...(c.messages || []), message] }))
-    );
+    const normalizedMessage = normalizeMessage(message);
+    setChats((prev) => {
+      const updated = prev.map((c) => {
+        if (c.id !== chatId) return c;
+        const nextMessages = [...(c.messages || []), normalizedMessage];
+        return {
+          ...c,
+          messages: nextMessages,
+          updatedAt: new Date().toISOString(),
+        };
+      });
+      return sortChatsByRecency(updated);
+    });
   };
 
   const currentChat = chats.find((c) => c.id === activeChatId) || null;
   const currentMessages = currentChat ? currentChat.messages || [] : [];
 
-  const handleRenameChat = (chatId, newTitle) => {
-    setChats((prev) => prev.map((c) => (c.id === chatId ? { ...c, title: newTitle } : c)));
+  const handleRenameChat = async (chatId, newTitle) => {
+    if (!newTitle) return;
+    const trimmed = newTitle.trim().slice(0, MAX_TITLE_LENGTH);
+    if (!trimmed) return;
+    try {
+      const updated = await updateChatApi(chatId, { title: trimmed });
+      upsertChat(updated);
+    } catch (error) {
+      console.error('Failed to rename chat:', error);
+      alert(error.response?.data?.message || 'Failed to rename chat.');
+    }
   };
 
-  const handleDeleteChat = (chatId) => {
-    setChats((prev) => prev.filter((c) => c.id !== chatId));
-    if (activeChatId === chatId) setActiveChatId(null);
+  const handleDeleteChat = async (chatId) => {
+    try {
+      await deleteChatApi(chatId);
+      setChats((prev) => prev.filter((c) => c.id !== chatId));
+      if (activeChatId === chatId) {
+        setActiveChatId(null);
+        const params = new URLSearchParams(window.location.search);
+        params.delete("chatId");
+        const query = params.toString();
+        window.history.replaceState(
+          null,
+          "",
+          query ? `${window.location.pathname}?${query}` : window.location.pathname
+        );
+      }
+    } catch (error) {
+      console.error('Failed to delete chat:', error);
+      alert(error.response?.data?.message || 'Failed to delete chat.');
+    }
   };
 
-  const handleArchiveChat = (chatId) => {
-    setChats((prev) =>
-      prev.map((c) =>
-        c.id === chatId ? { ...c, archived: true, archivedAt: new Date().toISOString() } : c
-      )
-    );
+  const handleArchiveChat = async (chatId) => {
+    try {
+      const updated = await updateChatApi(chatId, { archived: true });
+      upsertChat(updated);
+    } catch (error) {
+      console.error('Failed to archive chat:', error);
+      alert(error.response?.data?.message || 'Failed to archive chat.');
+    }
   };
 
-  const handleRestoreChat = (chatId) => {
-    setChats((prev) =>
-      prev.map((c) => (c.id === chatId ? { ...c, archived: false, archivedAt: null } : c))
-    );
+  const handleRestoreChat = async (chatId) => {
+    try {
+      const updated = await updateChatApi(chatId, { archived: false });
+      upsertChat(updated);
+    } catch (error) {
+      console.error('Failed to restore chat:', error);
+      alert(error.response?.data?.message || 'Failed to restore chat.');
+    }
   };
 
   const handleNewChat = () => {
+    // Starting a fresh new chat (no messages yet) -> clear chatId param so refresh doesn't resurrect old chat
     setActiveChatId(null);
     setInput("");
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("chatId")) {
+      params.delete("chatId");
+      const query = params.toString();
+      window.history.replaceState(null, "", query ? `${window.location.pathname}?${query}` : window.location.pathname);
+    }
   };
 
   const handleSelectChat = (chatId) => {
@@ -217,9 +308,15 @@ const closeHelp = () => {
     window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setCurrentUser(null);
-    onLogout && onLogout();
+    if (onLogout) {
+      try {
+        await onLogout();
+      } catch (error) {
+        console.error('Logout failed:', error);
+      }
+    }
   };
 
   const handleCancelStream = () => {
@@ -238,28 +335,81 @@ const closeHelp = () => {
 
   const handleSend = async (text) => {
     if (!text || !text.trim()) return;
+
+    if (loadingChats) {
+      alert('Chats are still loading. Please try again in a moment.');
+      return;
+    }
+
     const trimmed = text.trim();
     const userMsg = { role: "user", text: trimmed, time: nowTime() };
-    let chatId = activeChatId;
-    if (!chatId) {
-      chatId = Date.now().toString();
-      const newChat = {
-        id: chatId,
-        title: titleFromText(trimmed),
-        createdAt: new Date().toISOString(),
-        messages: [userMsg],
-      };
-      upsertChat(newChat);
-      setActiveChatId(chatId);
-      const params = new URLSearchParams(window.location.search);
-      params.set("chatId", chatId);
-      window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
-    } else {
-      appendMessageToChat(chatId, userMsg);
-    }
 
     setInput("");
     setIsLoading(true);
+    isStreamingCancelled.current = false;
+
+    let chatId = activeChatId;
+    if (chatId && !chats.some((c) => c.id === chatId)) {
+      chatId = null;
+      setActiveChatId(null);
+    }
+    let chatAfterUser;
+
+    try {
+      if (!chatId) {
+        const created = await createChatApi({
+          title: titleFromText(trimmed),
+          messages: [userMsg],
+        });
+        const normalized = normalizeChat(created);
+        upsertChat(normalized);
+        chatId = normalized.id;
+        chatAfterUser = normalized;
+        setActiveChatId(chatId);
+        const params = new URLSearchParams(window.location.search);
+        params.set("chatId", chatId);
+        window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+      } else {
+        const updated = await appendMessagesApi(chatId, [userMsg]);
+        const normalized = normalizeChat(updated);
+        upsertChat(normalized);
+        chatAfterUser = normalized;
+      }
+    } catch (error) {
+      console.error('Failed to persist user message:', error);
+      alert(error.response?.data?.message || 'Failed to save your message. Please try again.');
+      setIsLoading(false);
+      return;
+    }
+
+    if (!chatId) {
+      setIsLoading(false);
+      return;
+    }
+
+    if (!isGeminiConfigured()) {
+      const fallback =
+        "Gemini API not configured. Add your VITE_GEMINI_API_KEY to .env to get real responses.";
+      const fallbackTime = nowTime();
+      appendMessageToChat(chatId, {
+        role: "assistant",
+        text: fallback,
+        time: fallbackTime,
+        isStreaming: false,
+      });
+      setIsLoading(false);
+      appendMessagesApi(chatId, [
+        { role: "assistant", text: fallback, time: fallbackTime },
+      ])
+        .then((responseChat) => {
+          const normalized = normalizeChat(responseChat);
+          upsertChat(normalized);
+        })
+        .catch((persistError) => {
+          console.error('Failed to save fallback assistant reply:', persistError);
+        });
+      return;
+    }
 
     const assistantPlaceholder = {
       role: "assistant",
@@ -269,34 +419,12 @@ const closeHelp = () => {
     };
     appendMessageToChat(chatId, assistantPlaceholder);
 
-    const recentMessages = [
-      ...(chats.find((c) => c.id === chatId)?.messages || []),
-      userMsg,
-    ];
-
-    isStreamingCancelled.current = false;
+    const historyForGemini = chatAfterUser?.messages || [];
 
     try {
-      if (!isGeminiConfigured()) {
-        const fallback =
-          "Gemini API not configured. Add your VITE_GEMINI_API_KEY to .env to get real responses.";
-        setChats((prev) =>
-          prev.map((c) => {
-            if (c.id !== chatId) return c;
-            const msgs = c.messages
-              ? c.messages.map((m) =>
-                m.isStreaming ? { ...m, text: fallback, isStreaming: false } : m
-              )
-              : [{ role: "assistant", text: fallback, time: nowTime() }];
-            return { ...c, messages: msgs };
-          })
-        );
-        setIsLoading(false);
-        return;
-      }
-
       let accumulated = "";
-      await generateGeminiStreamResponse(trimmed, recentMessages, (chunk, isComplete, errorMessage) => {
+      const assistantTimestamp = nowTime();
+      await generateGeminiStreamResponse(trimmed, historyForGemini, (chunk, isComplete, errorMessage) => {
         if (isStreamingCancelled.current) {
           setIsLoading(false);
           setChats((prev) =>
@@ -327,19 +455,6 @@ const closeHelp = () => {
           return;
         }
 
-        if (isComplete) {
-          setChats((prev) =>
-            prev.map((c) => {
-              if (c.id !== chatId) return c;
-              const msgs = (c.messages || []).map((m) =>
-                m.isStreaming ? { ...m, text: accumulated.trim(), isStreaming: false } : m
-              );
-              return { ...c, messages: msgs };
-            })
-          );
-          setIsLoading(false);
-          return;
-        }
         if (chunk) {
           accumulated += chunk;
           setChats((prev) =>
@@ -351,6 +466,46 @@ const closeHelp = () => {
               return { ...c, messages: msgs };
             })
           );
+        }
+
+        if (isComplete) {
+          const finalText = accumulated.trim();
+          setChats((prev) =>
+            prev.map((c) => {
+              if (c.id !== chatId) return c;
+              const msgs = (c.messages || []).map((m) =>
+                m.isStreaming ? { ...m, text: finalText, isStreaming: false } : m
+              );
+              return { ...c, messages: msgs };
+            })
+          );
+          setIsLoading(false);
+
+          if (!finalText) {
+            return;
+          }
+
+          appendMessagesApi(chatId, [
+            { role: "assistant", text: finalText, time: assistantTimestamp },
+          ])
+            .then((responseChat) => {
+              const normalized = normalizeChat(responseChat);
+              upsertChat(normalized);
+            })
+            .catch((persistError) => {
+              console.error('Failed to save assistant reply:', persistError);
+              setChats((prev) =>
+                prev.map((c) => {
+                  if (c.id !== chatId) return c;
+                  const msgs = (c.messages || []).map((m) =>
+                    !m.isStreaming && m.text === finalText
+                      ? { ...m, isError: true, text: `${finalText}\n\n(Failed to save to server)` }
+                      : m
+                  );
+                  return { ...c, messages: msgs };
+                })
+              );
+            });
         }
       });
     } catch (err) {
@@ -371,7 +526,7 @@ const closeHelp = () => {
   return (
     <div
       className={`d-flex ${darkMode ? "bg-dark text-white" : "bg-light text-dark"}`}
-      style={{ height: "100vh", overflow: "hidden", backgroundColor: "#C9D6DF" }}
+      style={{ height: "100vh", overflow: "hidden" }}
     >
       {showHelp && (
   <HelpModal
@@ -383,13 +538,11 @@ const closeHelp = () => {
       {showUpgradePlan ? (
         <UpgradePlan
           darkMode={darkMode}
-          isOpen={showUpgradePlan}
-          
-          onClose={closeUpgradePlan}
+          onClose={() => { setShowUpgradePlan(false); navigate('/'); }}
           onUpgradeSuccess={() => {
             setShowUpgradePlan(false);
             setCurrentPlan("Pro");
-            window.history.pushState(null, "", "/");
+            navigate('/');
           }}
         />
       ) : (
@@ -404,14 +557,24 @@ const closeHelp = () => {
             currentUser={currentUser}
             onSelectChat={handleSelectChat}
             activeChatId={activeChatId}
-            onSettings={openSettings}  
-            onShowHelp={openHelp}
+            onSettings={() => { setShowSettings(true); navigate('/settings'); }}
             onRename={handleRenameChat}
             onDelete={handleDeleteChat}
             onArchive={handleArchiveChat}
-            onShowUpgradePlan={openUpgradePlan}
+            onShowUpgradePlan={() => { setShowUpgradePlan(true); navigate('/upgrade'); }}
+            onHelp={() => { setShowHelp(true); navigate('/help'); }}
             currentPlan={currentPlan}
+
           />
+          {loadError && (
+            <div
+              className="alert alert-danger"
+              role="alert"
+              style={{ position: "fixed", top: 16, right: 16, zIndex: 1200 }}
+            >
+              {loadError}
+            </div>
+          )}
           <ChatArea
             darkMode={darkMode}
             toggleDarkMode={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
@@ -420,10 +583,10 @@ const closeHelp = () => {
             message={input}
             setMessage={setInput}
             onSendMessage={handleSend}
-            currentUser={currentUser}
-            isLoading={isLoading}
+            isLoading={isLoading || loadingChats}
             onCancelStream={handleCancelStream}
             chatTitle={currentChat?.title}
+            activeChatId={activeChatId}
             onNewChat={handleNewChat}
           />
           <SettingsPanel
@@ -431,9 +594,14 @@ const closeHelp = () => {
             onRestoreChat={handleRestoreChat}
             onPermanentlyDeleteChat={handleDeleteChat}
             isOpen={showSettings}
-            onClose={closeSettings} 
+            onClose={() => { setShowSettings(false); navigate('/'); }}
             theme={theme}
             setTheme={(t) => setTheme(t)}
+          />
+          <HelpModal
+            darkMode={darkMode}
+            isOpen={showHelp}
+            onClose={() => { setShowHelp(false); navigate('/'); }}
           />
         </>
       )}

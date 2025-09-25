@@ -20,7 +20,7 @@ const app = express();
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(cookieParser());
-const allowedOrigins = (process.env.CLIENT_ORIGINS || process.env.CLIENT_ORIGIN || 'http://localhost:5176,http://localhost:5173')
+const allowedOrigins = (process.env.CLIENT_ORIGINS || process.env.CLIENT_ORIGIN || 'http://localhost:5173')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
@@ -28,16 +28,16 @@ const allowedOrigins = (process.env.CLIENT_ORIGINS || process.env.CLIENT_ORIGIN 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (e.g., mobile apps, Postman) only in development
       if (!origin && process.env.NODE_ENV !== 'production') return callback(null, true);
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+      if (allowedOrigins.includes(origin)) return callback(null, true);
       return callback(new Error('Origin not allowed by CORS'));
     },
     credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization'], // <-- add this
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // optional but safe
   })
 );
+
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
 });

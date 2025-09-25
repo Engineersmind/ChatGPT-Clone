@@ -21,28 +21,32 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
   const navigate = useNavigate();
+  const token = localStorage.getItem('authToken');
 
-  useEffect(() => {
-    const checkUserSession = async () => {
-      try {
-        // The cookie is sent automatically by the browser due to `withCredentials: true`
-        const { data } = await axios.get(`${API_URL}/api/auth/me`, { withCredentials: true });
-        if (data) {
-          setCurrentUser(data);
-          setLoggedIn(true);
-        }
-      } catch (err) {
-        setCurrentUser(null);
-        setLoggedIn(false);
-        console.warn('No active session or session check failed.', err);
-      } finally {
-      
-        setLoading(false);
+
+ useEffect(() => {
+  const checkUserSession = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) throw new Error('No auth token found');
+      const { data } = await axios.get(`${API_URL}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (data) {
+        setCurrentUser(data);
+        setLoggedIn(true);
       }
-    };
+    } catch (err) {
+      setCurrentUser(null);
+      setLoggedIn(false);
+      console.warn('No active session or session check failed.', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+  checkUserSession();
+}, []);
 
-    checkUserSession();
-  }, []); 
 
 
   const handleLogin = (user) => {
@@ -53,18 +57,19 @@ function App() {
   };
 
   const handleLogout = async () => {
-    try {
+  try {
+    await apiLogoutUser();
+  } catch (error) {
+    console.error('Error logging out:', error);
+  }
 
-      await apiLogoutUser();
-    } catch (error) {
-      console.error('Error logging out:', error);
-    }
-    setCurrentUser(null);
-    setLoggedIn(false);
-    setDarkMode(false);
-    localStorage.removeItem(USER_KEY);
+  setCurrentUser(null);
+  setLoggedIn(false);
+  setDarkMode(false);
+  localStorage.removeItem('authToken');          // Remove JWT token
+  localStorage.removeItem(USER_KEY);              // Remove user info
+};
 
-  };
 
   const toggleDarkMode = () => setDarkMode(!darkMode);
 

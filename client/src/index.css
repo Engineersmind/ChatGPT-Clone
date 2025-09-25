@@ -128,3 +128,8 @@ body.bg-dark textarea::placeholder {
 }
 
 
+
+.form-control::placeholder {
+  color: var(--placeholder-color);
+  opacity: 1;
+}

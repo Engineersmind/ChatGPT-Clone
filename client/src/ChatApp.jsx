@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import Sidebar from "./component/sidebar";
 import ChatArea from "./component/ChatArea";
+import axios from "axios";
 import SettingsPanel from "./component/SettingsPanel/SettingsPanel";
 import { generateGeminiStreamResponse, isGeminiConfigured } from "./services/geminiService";
 import { 
@@ -82,6 +83,13 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
   const [showSettings, setShowSettings] = useState(initialShowSettings);
   const [showUpgradePlan, setShowUpgradePlan] = useState(initialShowUpgradePlan);
   const [showHelp, setShowHelp] = useState(initialShowHelp);
+
+  // const [currentPlan, setCurrentPlan] = useState("Free Plan");
+
+  const PLAN_STORAGE_KEY = "current_plan";
+  const THEME_STORAGE_KEY = "chat_theme";
+
+
   const [theme, setTheme] = useState(() => {
     try {
       return localStorage.getItem(THEME_STORAGE_KEY) || "system";
@@ -103,7 +111,6 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
   const [activeChatId, setActiveChatId] = useState(null);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-
   const [currentUser, setCurrentUser] = useState(user || { name: "User" });
   const isStreamingCancelled = useRef(false);
 
@@ -131,27 +138,28 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
   useEffect(() => {
     let isMounted = true;
 
-    const loadChats = async () => {
-      setLoadingChats(true);
-      setLoadError(null);
-      try {
-        const response = await fetchChats();
-        if (!isMounted) return;
-        const normalizedChats = Array.isArray(response)
-          ? response.map(normalizeChat)
-          : [];
-        setChats(sortChatsByRecency(normalizedChats));
-      } catch (error) {
-        if (!isMounted) return;
-        console.error('Failed to load chats:', error);
-        setLoadError(error.message || 'Failed to load chats.');
-        setChats([]);
-      } finally {
-        if (isMounted) {
-          setLoadingChats(false);
-        }
-      }
-    };
+   const loadChats = async () => {
+  setLoadingChats(true);
+  setLoadError(null);
+  try {
+    const token = localStorage.getItem("authToken");
+    const response = await axios.get("http://localhost:5000/api/chats", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const normalizedChats = Array.isArray(response.data)
+      ? response.data.map(normalizeChat)
+      : [];
+    setChats(sortChatsByRecency(normalizedChats));
+  } catch (error) {
+    console.error('Failed to load chats:', error);
+    setLoadError(error.message || 'Failed to load chats.');
+    setChats([]);
+  } finally {
+    setLoadingChats(false);
+  }
+};
+
 
     loadChats();
 
@@ -543,6 +551,13 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
       className={`d-flex ${darkMode ? "bg-dark text-white" : "bg-light text-dark"}`}
       style={{ height: "100vh", overflow: "hidden" }}
     >
+      {showHelp && (
+  <HelpModal
+    isOpen={showHelp}
+    onClose={closeHelp}
+    darkMode={darkMode}
+  />
+)}
       {showUpgradePlan ? (
         <UpgradePlan
           darkMode={darkMode}

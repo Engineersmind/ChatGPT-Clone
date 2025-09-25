@@ -1,11 +1,12 @@
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
 
 const UserSchema = new mongoose.Schema({
   username: {
     type: String,
-    required: [true, 'Please provide a username'],
-    unique: true,
+    required: function () {
+      return !this.provider; // required only for normal signup
+    },
+    unique: false, // usernames from google may clash; handle differently if needed
   },
   email: {
     type: String,
@@ -15,9 +16,12 @@ const UserSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Please provide a password'],
     minlength: 6,
-    select: false, // <-- IMPORTANT: This hides the password by default
+    select: false, // hide password by default
+  },
+  provider: {
+    type: String, // e.g., "google", "local"
+    default: "local",
   },
   pro: {
     type: Number,
@@ -28,20 +32,26 @@ const UserSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  resetPasswordToken: String,
+  resetPasswordExpires: Date,
 });
 
-// Middleware to hash password BEFORE saving a user
+// Only hash password if provider === "local"
+const bcrypt = require('bcryptjs');
+
 UserSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) {
-    return next();
-  }
+  if (this.provider !== "local") return next();
+
+  if (!this.isModified('password')) return next();
+
   const salt = await bcrypt.genSalt(12);
   this.password = await bcrypt.hash(this.password, salt);
   next();
 });
 
-// Method to compare entered password with the hashed password
+// Compare password (only for local users)
 UserSchema.methods.matchPassword = async function (enteredPassword) {
+  if (this.provider !== "local") return false;
   return await bcrypt.compare(enteredPassword, this.password);
 };
 

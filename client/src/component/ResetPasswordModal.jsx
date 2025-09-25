@@ -2,16 +2,19 @@ import React, { useState } from 'react';
 import { motion as Motion } from 'framer-motion';
 import { Lock, Eye, EyeOff } from 'lucide-react';
 import './SocialLoginModal.css';
+
+
 import { resetPassword as apiResetPassword } from '../services/authService';
 
 export default function ResetPasswordModal({ darkMode, email, token, onComplete }) {
+
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
- 
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -38,9 +41,12 @@ export default function ResetPasswordModal({ darkMode, email, token, onComplete 
       const message = err?.response?.data?.message || 'Failed to reset password. Please try again.';
       setError(message);
     } finally {
+
       setIsLoading(false);
     }
+
   };
+
  
   return (
     <div className="modal-overlay">

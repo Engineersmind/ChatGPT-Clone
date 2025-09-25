@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from "react-router-dom";
+
 import {
   LogOut,
   Plus,
@@ -29,6 +31,7 @@ export default function Sidebar({
   onSelectChat,
   activeChatId,
   onSettings,
+  onShowHelp,
   onRename,
   onArchive,
   onDelete,
@@ -36,6 +39,7 @@ export default function Sidebar({
   onHelp,
   currentPlan
 }) {
+  const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -160,7 +164,10 @@ export default function Sidebar({
         {shouldShowFull && (
           <div className="p-3 border-bottom">
             <button
-              onClick={onNewChat}
+               onClick={() => {
+            onNewChat();        // your existing reset function
+            navigate("/chat");  // ✅ reset URL to /chat
+          }}
               className="btn text-white w-100 mb-3 rounded-3 d-flex align-items-center justify-content-center gap-2"
               style={{ background: 'linear-gradient(to right, #3b82f6, #827e8aff)', border: 'none' }}
             >
@@ -183,7 +190,10 @@ export default function Sidebar({
         {!shouldShowFull && (
           <div className="p-2">
             <button
-              onClick={onNewChat}
+               onClick={() => {
+            onNewChat();        // your existing reset function
+            navigate("/chat");  // ✅ reset URL to /chat
+          }}
               className="btn text-white w-100 mb-3 rounded-3 d-flex justify-content-center"
               style={{ background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', border: 'none' }}
               title="New Chat"
@@ -444,6 +454,7 @@ export default function Sidebar({
                     style={{ background: 'none', border: 'none' }}
                     onClick={() => {
                       setShowUserMenu(false);
+                     
                       onSettings && onSettings();
                     }}
                   >

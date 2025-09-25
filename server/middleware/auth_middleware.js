@@ -14,13 +14,20 @@ const extractToken = (req) => {
     return null;
 };
 
-const authenticateUser = async (req, res, next) => {
-    const token = extractToken(req);
 
-    if (!token) {
-        return res.status(401).json({ message: 'Access denied. Authentication required.' });
-    }
 
+
+
+const authenticateUser = (req, res, next) => {
+  // get token from headers (Bearer token expected)
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: 'No token provided.' });
+  }
+
+  const token = authHeader.split(' ')[1];
+
+ 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const user = await User.findById(decoded.id).select('-password');
@@ -35,6 +42,7 @@ const authenticateUser = async (req, res, next) => {
             username: user.username,
             provider: user.provider,
             pro: typeof user.pro === 'number' ? user.pro : 0,
+            decoded
         };
 
         next();
@@ -42,6 +50,8 @@ const authenticateUser = async (req, res, next) => {
         console.error('Auth middleware error:', error);
         return res.status(401).json({ message: 'Invalid or expired token.' });
     }
+
 };
+
 
 module.exports = { authenticateUser };

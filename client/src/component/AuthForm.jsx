@@ -69,6 +69,15 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
     }
   }, []);
 
+useEffect(() => {
+  if (typeof window === 'undefined') return;
+  const storedUser = localStorage.getItem("chatapp_current_user");
+  const token = localStorage.getItem("authToken");
+
+  if (storedUser && token) {
+    onLogin(JSON.parse(storedUser));
+  }
+}, []);
 
 
 
@@ -100,9 +109,11 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
       .catch(err => console.error('FAILED to send welcome email.', err));
   };
 
-  const handleSignup = async (e) => {
+const handleSignup = async (e) => {
     e.preventDefault();
-    setError(''); setSuccess(''); setIsLoading(true);
+    setError('');
+    setSuccess('');
+    setIsLoading(true);
 
     if (!email || !username || !password) { setError('❌ All fields are required.'); setIsLoading(false); return; }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -111,34 +122,50 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
     if (!/^[a-zA-Z0-9_]+$/.test(username)) { setError('❌ Username can only contain letters, numbers, and underscores.'); setIsLoading(false); return; }
     if (!agreeTerms) { setError('❌ Please agree to the Terms & Conditions.'); setIsLoading(false); return; }
     if (password.length < 6) { setError('❌ Password must be at least 6 characters long.'); setIsLoading(false); return; }
-    const hasUpperCase = /[A-Z]/.test(password); const hasLowerCase = /[a-z]/.test(password); const hasNumbers = /\d/.test(password);
-    if (!hasUpperCase || !hasLowerCase || !hasNumbers) { setError('❌ Password must contain an uppercase letter, a lowercase letter, and a number.'); setIsLoading(false); return; }
+    const hasUpperCase = /[A-Z]/.test(password); 
+    const hasLowerCase = /[a-z]/.test(password); 
+    const hasNumbers = /\d/.test(password);
+    if (!hasUpperCase || !hasLowerCase || !hasNumbers) { 
+        setError('❌ Password must contain an uppercase letter, a lowercase letter, and a number.'); 
+        setIsLoading(false); 
+        return; 
+    }
 
     try {
-      const response = await apiRegisterUser({
-        email: email.trim(),
-        username: username.trim(),
-        password,
-      });
+        const response = await apiRegisterUser({
+            email: email.trim(),
+            username: username.trim(),
+            password,
+        });
 
-      const registeredUser = response.data?.user;
-      setSuccess('🎉 Account created successfully! Logging you in...');
-      sendWelcomeEmail(registeredUser || { email, username });
-      setIsLoading(false);
+        const registeredUser = response.data?.user;
+        const token = response.data?.token; // Make sure backend returns this
 
-      if (registeredUser) {
-        onLogin(registeredUser);
-      } else {
-        onLogin({ email, username });
-      }
+        setSuccess('🎉 Account created successfully! Logging you in...');
+        console.log('Forgot password template ID:', import.meta.env.VITE_EMAILJS_FORGOT_PASSWORD_TEMPLATE_ID);
+
+        sendWelcomeEmail(registeredUser || { email, username });
+
+        // *** Fix: Save user & token for API auth ***
+        if (registeredUser && token) {
+            localStorage.setItem('authToken', token); // Store JWT for future requests
+            localStorage.setItem('chatappcurrentuser', JSON.stringify(registeredUser));
+            onLogin(registeredUser);
+        } else {
+            // Partial fallback in case backend doesn't send both values
+            localStorage.removeItem('authToken');
+            localStorage.setItem('chatappcurrentuser', JSON.stringify({ email, username }));
+            onLogin({ email, username });
+        }
+        setIsLoading(false);
     } catch (err) {
-      console.error('Signup error:', err);
-      const message = err.response?.data?.message || 'Registration failed. Please try again.';
-      setError(`❌ ${message}`);
-
-      setIsLoading(false);
+        console.error('Signup error:', err);
+        const message = err.response?.data?.message || 'Registration failed. Please try again.';
+        setError(`❌ ${message}`);
+        setIsLoading(false);
     }
-  };
+};
+
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -152,6 +179,7 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
       });
 
       const loggedInUser = response.data?.user;
+      const token = response.data?.token; 
       const rememberedEmail = loggedInUser?.email ?? email.trim();
       if (rememberMe) {
         persistRememberedEmail(rememberedEmail);
@@ -161,6 +189,10 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
 
       setSuccess('✅ Login successful! Redirecting...');
       onLogin(loggedInUser || { email: email.trim() });
+      if (loggedInUser) {
+  localStorage.setItem("authToken", token); // token from backend
+  localStorage.setItem("chatapp_current_user", JSON.stringify(loggedInUser));
+}
     } catch (err) {
       console.error('Login error:', err);
       const message = err.response?.data?.message || 'Login failed. Please check your credentials.';
@@ -171,20 +203,36 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
     }
   };
 
-  const loginWithGoogle = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      // Note: This is a frontend-only implementation. For a full-stack app,
-      // you would send the tokenResponse.access_token to your backend to verify
-      // and create a session there.
-      try {
-        setIsLoading(true);
-        setError('');
-        setSuccess('Authenticating with Google...');
-        const res = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
-          headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
-        });
-        const userProfile = res.data;
+const loginWithGoogle = useGoogleLogin({
+  onSuccess: async (tokenResponse) => {
+    // console.log("Google login success, token response:", tokenResponse);
+    try {
+      setIsLoading(true);
+      setError('');
+      setSuccess('Authenticating with Google...');
 
+      // 1. Get Google profile
+      const res = await axios.get(
+        `https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=${tokenResponse.access_token}`
+      );
+      const userProfile = res.data;
+      // console.log("Google user profile:", userProfile);
+
+      // 2. Send to backend
+      const response = await axios.post("http://localhost:5000/api/auth/google", {
+        email: userProfile.email,
+        name: userProfile.name,
+        googleId: userProfile.id,
+      });
+
+      console.log("Google auth response:", response.data);
+
+      const savedUser = response.data.user;
+      const token = response.data.token; // <-- backend must return JWT
+
+
+      // 3. Save + login
+      persistRememberedEmail(savedUser.email);
 
         const userToLogin = {
           id: userProfile.sub,
@@ -198,24 +246,28 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
           persistRememberedEmail(null);
         }
 
-        setSuccess(`✅ Welcome, ${userProfile.name || 'there'}!`);
 
+      // Save JWT for future requests
+      localStorage.setItem("authToken", token);
+      localStorage.setItem("chatapp_current_user", JSON.stringify(savedUser));
 
-        setTimeout(() => {
-          onLogin(userToLogin); // Placeholder login
-          setIsLoading(false);
-        }, 800);
-      } catch (error) {
-        console.error('Google login failed:', error);
-        setError('❌ Google login failed. Please try again.');
-        setSuccess('');
+      setSuccess(`✅ Welcome, ${savedUser.username || savedUser.name}!`);
+
+      setTimeout(() => {
+        onLogin(savedUser);
         setIsLoading(false);
-      }
-    },
-    onError: () => {
-      setError('❌ Google login failed. Please try again.');
-    },
-  });
+      }, 800);
+    } catch (err) {
+      console.error("Google save error:", err);
+      setError("❌ Failed to save Google user.");
+      setIsLoading(false);
+    }
+  },
+  onError: () => {
+    setError("❌ Google login failed. Please try again.");
+  },
+});
+
 
   const handleSocialLogin = (provider) => { setActiveProvider(provider); setIsModalOpen(true); };
 

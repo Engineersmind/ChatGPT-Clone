@@ -22,9 +22,14 @@ export default function ForgotPasswordModal({ darkMode, onClose }) {
  
     const users = JSON.parse(localStorage.getItem('chatapp_users')) || [];
     const foundUser = users.find(user => user.email === email);
+    console.log('Searching for user with email:', email);
+    console.log('Users in storage:', users);
  
     if (foundUser) {
-      // 1. Generate a unique and secure token for the reset link.
+      console.log('Found user for password reset:', foundUser);
+      
+      // 1. Generate a unique and secure
+      //  token for the reset link.
       const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
       
       // 2. Store the token with the user's email and an expiration time (e.g., 1 hour).

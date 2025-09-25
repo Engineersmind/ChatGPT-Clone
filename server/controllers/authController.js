@@ -1,5 +1,9 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const bcrypt = require('bcryptjs');
+const crypto = require('node:crypto');
+
+
 
 if (!process.env.JWT_SECRET) {
   throw new Error('JWT_SECRET environment variable is required');
@@ -110,7 +114,6 @@ exports.loginUser = async (req, res) => {
 };
 
 exports.logoutUser = (req, res) => {
-  console.log('User logged out:', req.user);
 
   res
     .cookie('token', '', {
@@ -143,6 +146,42 @@ exports.getCurrentUser = async (req, res) => {
     return res.status(500).json({ message: 'Server error while fetching user.' });
   }
 };
+
+
+exports.googleAuth = async (req, res) => {
+  try {
+    const { email, name, googleId } = req.body;
+
+    if (!email || !googleId) {
+      return res.status(400).json({ message: "Invalid Google user data" });
+    }
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      user = new User({
+        email,
+        username: name,
+        googleId,
+        provider: 'google'
+      });
+      await user.save();
+    }
+
+    // ✅ Generate JWT
+    const token = jwt.sign(
+      { id: user._id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    res.json({ user, token });
+  } catch (err) {
+    console.error("Google Auth Error:", err);
+    res.status(500).json({ message: "Google login failed" });
+  }
+};
+
 
 exports.updateUserPlan = async (req, res) => {
   const userId = req.user?.id || req.user?._id;
@@ -206,5 +245,6 @@ exports.resetPasswordWithToken = async (req, res) => {
   } catch (error) {
     console.error('Error resetting password:', error);
     return res.status(500).json({ message: 'Server error while resetting password.' });
+
   }
 };

@@ -18,7 +18,7 @@ const extractToken = (req) => {
 
 
 
-const authenticateUser = (req, res, next) => {
+const authenticateUser = async(req, res, next) => {
   // get token from headers (Bearer token expected)
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {

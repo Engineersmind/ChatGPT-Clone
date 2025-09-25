@@ -13,8 +13,8 @@ router.post('/logout', logoutUser);
 
 // Google auth
 router.post('/google', googleAuth);
-router.post('/forgot-password', sendResetPasswordLink);
-router.post('/reset-password', resetPassword);
+// router.post('/forgot-password', sendResetPasswordLink);
+// router.post('/reset-password', resetPassword);
 
 // Protected route
 router.get('/me', authenticateUser, getCurrentUser);

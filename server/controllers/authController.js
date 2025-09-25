@@ -22,6 +22,7 @@ const buildUserPayload = (user) => ({
   username: user.username,
   email: user.email,
   provider: user.provider,
+  pro: typeof user.pro === 'number' ? user.pro : 0,
   createdAt: user.createdAt,
 });
 
@@ -113,7 +114,7 @@ exports.loginUser = async (req, res) => {
 };
 
 exports.logoutUser = (req, res) => {
-console.log('Logging out user');
+
   res
     .cookie('token', '', {
       httpOnly: true,
@@ -145,6 +146,7 @@ exports.getCurrentUser = async (req, res) => {
     return res.status(500).json({ message: 'Server error while fetching user.' });
   }
 };
+
 
 exports.googleAuth = async (req, res) => {
   try {
@@ -180,75 +182,69 @@ exports.googleAuth = async (req, res) => {
   }
 };
 
-exports.sendResetPasswordLink = async (req, res) => {
-  const { email } = req.body;
-  console.log('DEBUG BACKEND: Request to reset password for email =', email);
+
+exports.updateUserPlan = async (req, res) => {
+  const userId = req.user?.id || req.user?._id;
+  const { pro } = req.body || {};
+
+  if (!userId) {
+    return res.status(401).json({ message: 'Not authenticated.' });
+  }
+
+  if (typeof pro === 'undefined') {
+    return res.status(400).json({ message: 'Missing required field: pro.' });
+  }
+
+  const normalizedPro = Number(pro) === 1 ? 1 : 0;
 
   try {
-    const user = await User.findOne({ email: email.trim().toLowerCase() });
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { pro: normalizedPro },
+      { new: true, runValidators: true, context: 'query' }
+    ).select('-password');
 
     if (!user) {
-      console.log('DEBUG BACKEND: User not found, returning generic message');
-      return res.json({ message: 'If an account exists, a reset link has been sent.' });
+      return res.status(404).json({ message: 'User not found.' });
     }
 
-    const token = crypto.randomBytes(32).toString('hex');
-    console.log('DEBUG BACKEND: Generated reset token =', token);
-
-    user.resetPasswordToken = token;
-    user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
-    await user.save();
-    console.log('DEBUG: saved user token:', user.resetPasswordToken);
-
-    const resetLink = `${process.env.FRONTEND_URL}/login?reset_token=${token}&email=${encodeURIComponent(email)}`;
-    console.log('DEBUG BACKEND: Reset link =', resetLink);
-
-    res.json({ message: 'If an account exists, a reset link has been sent.' });
-  } catch (err) {
-    console.error('DEBUG BACKEND ERROR:', err);
-    res.status(500).json({ message: 'Server error' });
+    return res.status(200).json({
+      message: 'Plan updated successfully.',
+      user: buildUserPayload(user),
+    });
+  } catch (error) {
+    console.error('Error updating user plan:', error);
+    return res.status(500).json({ message: 'Server error while updating plan.' });
   }
 };
 
+exports.resetPasswordWithToken = async (req, res) => {
+  const { email, password } = req.body || {};
 
-exports.resetPassword = async (req, res) => {
-  const { email, token, newPassword } = req.body;
-  console.log('DEBUG BACKEND: Received email =', email);
-  console.log('DEBUG BACKEND: Received token =', token);
+  if (!email || !password) {
+    return res.status(400).json({ message: 'Email and new password are required.' });
+  }
 
-  if (!email || !token || !newPassword) {
-    return res.status(400).json({ message: 'Email, token, and new password are required.' });
+  if (typeof password !== 'string' || password.length < 6) {
+    return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
   }
 
   try {
-    const emailNormalized = email.trim().toLowerCase();
-    console.log('DEBUG BACKEND: Normalized email =', emailNormalized);
-
-    const user = await User.findOne({
-      email: emailNormalized,
-      resetPasswordToken: token,
-      resetPasswordExpires: { $gt: Date.now() }, // token not expired
-    });
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail }).select('+password');
 
     if (!user) {
-      console.log('DEBUG BACKEND: No matching user found or token expired');
-      return res.status(400).json({ message: 'Invalid or expired token.' });
+      // Return generic success message to avoid leaking which emails exist.
+      return res.status(200).json({ message: 'If an account exists for that email, the password has been updated.' });
     }
 
-    console.log('DEBUG BACKEND: User found, resetting password:', user.email);
-
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(newPassword, salt);
-
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpires = undefined;
-
+    user.password = password;
     await user.save();
-    console.log('DEBUG BACKEND: Password reset successful');
 
-    res.json({ message: 'Password has been reset successfully.' });
-  } catch (err) {
-    console.error('DEBUG BACKEND ERROR:', err);
-    res.status(500).json({ message: 'Server error while resetting password.' });
+    return res.status(200).json({ message: 'Password updated successfully.' });
+  } catch (error) {
+    console.error('Error resetting password:', error);
+    return res.status(500).json({ message: 'Server error while resetting password.' });
+
   }
 };

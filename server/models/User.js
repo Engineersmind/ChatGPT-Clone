@@ -23,6 +23,11 @@ const UserSchema = new mongoose.Schema({
     type: String, // e.g., "google", "local"
     default: "local",
   },
+  pro: {
+    type: Number,
+    enum: [0, 1],
+    default: 0,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

@@ -2,64 +2,50 @@ import React, { useState } from 'react';
 import { motion as Motion } from 'framer-motion';
 import { Lock, Eye, EyeOff } from 'lucide-react';
 import './SocialLoginModal.css';
-import axios from 'axios';
- 
-export default function ResetPasswordModal({ darkMode, email, onComplete }) {
+
+
+import { resetPassword as apiResetPassword } from '../services/authService';
+
+export default function ResetPasswordModal({ darkMode, email, token, onComplete }) {
+
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
  
-  // import axios from 'axios';
-
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setError('');
-  setSuccess('');
-  setIsLoading(true);
-
-  if (password !== confirmPassword) {
-    setError("Passwords don't match.");
-    setIsLoading(false);
-    return;
-  }
-
-  try {
-    // Get token and email from URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('reset_token');
-    const emailFromUrl = urlParams.get('email')?.trim().toLowerCase(); // normalize
-
-    console.log('DEBUG FRONTEND: token from URL =', token);
-    console.log('DEBUG FRONTEND: email from URL =', emailFromUrl);
-
-    if (!token || !emailFromUrl) {
-      setError('Invalid or expired password reset link.');
-      setIsLoading(false);
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
       return;
     }
 
-    const response = await axios.post('http://localhost:5000/api/auth/reset-password', {
-      email: emailFromUrl,
-      token,           // send as "token"
-      newPassword: password,
-    });
+    setIsLoading(true);
 
-    console.log('DEBUG FRONTEND: response.data =', response.data);
+    try {
+      await apiResetPassword({ email, password, token });
+      setSuccess('Password has been reset successfully! You will be redirected to the login page shortly.');
+      setTimeout(() => {
+        onComplete();
+      }, 3000);
+    } catch (err) {
+      const message = err?.response?.data?.message || 'Failed to reset password. Please try again.';
+      setError(message);
+    } finally {
 
-    setSuccess('Your password has been reset successfully!');
-    onComplete && onComplete(); // optional callback
-  } catch (err) {
-    console.error('DEBUG FRONTEND ERROR:', err.response?.data || err);
-    setError(err.response?.data?.message || 'Something went wrong. Please try again.');
-  } finally {
-    setIsLoading(false);
-  }
-};
+      setIsLoading(false);
+    }
 
-
+  };
 
  
   return (

@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import Sidebar from "./component/sidebar";
 import ChatArea from "./component/ChatArea";
 import axios from "axios";
 import SettingsPanel from "./component/SettingsPanel/SettingsPanel";
 import { generateGeminiStreamResponse, isGeminiConfigured } from "./services/geminiService";
-import {
+import { 
   fetchChats,
   createChat as createChatApi,
   appendMessages as appendMessagesApi,
@@ -14,6 +14,7 @@ import {
 import UpgradePlan from "./component/UpgradePlan";
 import HelpModal from "./component/Help";
 import { useNavigate } from 'react-router-dom';
+import { updateUserPlan } from "./services/authService";
 
 function titleFromText(text) {
   if (!text) return "Chat";
@@ -25,6 +26,7 @@ function titleFromText(text) {
 
 const STORAGE_KEY = "chat_history_v1"; // legacy key kept for compatibility with cached state
 const MAX_TITLE_LENGTH = 15; // constraint for chat titles
+const THEME_STORAGE_KEY = "chat_theme"; // new key for theme persistence
 
 function nowTime() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -81,10 +83,12 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
   const [showSettings, setShowSettings] = useState(initialShowSettings);
   const [showUpgradePlan, setShowUpgradePlan] = useState(initialShowUpgradePlan);
   const [showHelp, setShowHelp] = useState(initialShowHelp);
+
   // const [currentPlan, setCurrentPlan] = useState("Free Plan");
 
   const PLAN_STORAGE_KEY = "current_plan";
   const THEME_STORAGE_KEY = "chat_theme";
+
 
   const [theme, setTheme] = useState(() => {
     try {
@@ -94,17 +98,7 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
     }
   });
 
-  const [currentPlan, setCurrentPlan] = useState(() => {
-    try {
-      return localStorage.getItem(PLAN_STORAGE_KEY) || "Free";
-    } catch {
-      return "Free";
-    }
-  });
-
-  useEffect(() => {
-    localStorage.setItem(PLAN_STORAGE_KEY, currentPlan);
-  }, [currentPlan]);
+  const [currentPlan, setCurrentPlan] = useState(user?.pro === 1 ? "Pro" : "Free");
 
   useEffect(() => {
     localStorage.setItem(THEME_STORAGE_KEY, theme);
@@ -124,6 +118,14 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
 
   useEffect(() => {
     if (user) setCurrentUser(user);
+  }, [user]);
+
+  useEffect(() => {
+    if (user && typeof user.pro !== "undefined") {
+      setCurrentPlan(user.pro === 1 ? "Pro" : "Free");
+    } else {
+      setCurrentPlan("Free");
+    }
   }, [user]);
 
   // Sync panel open state with URL paths (simple approach)
@@ -204,7 +206,7 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
   }, [theme, darkMode]);
 
   // Chat management
-  const upsertChat = (chat) => {
+  const upsertChat = useCallback((chat) => {
     const normalized = normalizeChat(chat);
     setChats((prev) => {
       const exists = prev.some((c) => c.id === normalized.id);
@@ -213,9 +215,9 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
         : [normalized, ...prev];
       return sortChatsByRecency(updated);
     });
-  };
+  }, []);
 
-  const appendMessageToChat = (chatId, message) => {
+  const appendMessageToChat = useCallback((chatId, message) => {
     const normalizedMessage = normalizeMessage(message);
     setChats((prev) => {
       const updated = prev.map((c) => {
@@ -229,25 +231,9 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
       });
       return sortChatsByRecency(updated);
     });
-  };
+  }, []);
 
-  const currentChat = chats.find((c) => c.id === activeChatId) || null;
-  const currentMessages = currentChat ? currentChat.messages || [] : [];
-
-  const handleRenameChat = async (chatId, newTitle) => {
-    if (!newTitle) return;
-    const trimmed = newTitle.trim().slice(0, MAX_TITLE_LENGTH);
-    if (!trimmed) return;
-    try {
-      const updated = await updateChatApi(chatId, { title: trimmed });
-      upsertChat(updated);
-    } catch (error) {
-      console.error('Failed to rename chat:', error);
-      alert(error.response?.data?.message || 'Failed to rename chat.');
-    }
-  };
-
-  const handleDeleteChat = async (chatId) => {
+  const handleDeleteChat = useCallback(async (chatId) => {
     try {
       await deleteChatApi(chatId);
       setChats((prev) => prev.filter((c) => c.id !== chatId));
@@ -266,9 +252,9 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
       console.error('Failed to delete chat:', error);
       alert(error.response?.data?.message || 'Failed to delete chat.');
     }
-  };
+  }, [activeChatId]);
 
-  const handleArchiveChat = async (chatId) => {
+  const handleArchiveChat = useCallback(async (chatId) => {
     try {
       const updated = await updateChatApi(chatId, { archived: true });
       upsertChat(updated);
@@ -276,9 +262,25 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
       console.error('Failed to archive chat:', error);
       alert(error.response?.data?.message || 'Failed to archive chat.');
     }
-  };
+  }, [upsertChat]);
 
-  const handleRestoreChat = async (chatId) => {
+  const handleRenameChat = useCallback(async (chatId, newTitle) => {
+    if (!chatId) return;
+    const trimmed = (newTitle || "").trim();
+    if (!trimmed) return;
+
+    const limited = trimmed.slice(0, MAX_TITLE_LENGTH);
+
+    try {
+      const updated = await updateChatApi(chatId, { title: limited });
+      upsertChat(updated);
+    } catch (error) {
+      console.error('Failed to rename chat:', error);
+      alert(error.response?.data?.message || 'Failed to rename chat.');
+    }
+  }, [upsertChat]);
+
+  const handleRestoreChat = useCallback(async (chatId) => {
     try {
       const updated = await updateChatApi(chatId, { archived: false });
       upsertChat(updated);
@@ -286,9 +288,9 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
       console.error('Failed to restore chat:', error);
       alert(error.response?.data?.message || 'Failed to restore chat.');
     }
-  };
+  }, [upsertChat]);
 
-  const handleNewChat = () => {
+  const handleNewChat = useCallback(() => {
     // Starting a fresh new chat (no messages yet) -> clear chatId param so refresh doesn't resurrect old chat
     setActiveChatId(null);
     setInput("");
@@ -298,18 +300,19 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
       const query = params.toString();
       window.history.replaceState(null, "", query ? `${window.location.pathname}?${query}` : window.location.pathname);
     }
-  };
+  }, []);
 
-  const handleSelectChat = (chatId) => {
+  const handleSelectChat = useCallback((chatId) => {
     setActiveChatId(chatId);
     setInput("");
     const params = new URLSearchParams(window.location.search);
     params.set("chatId", chatId);
     window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
-  };
+  }, []);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     setCurrentUser(null);
+    setCurrentPlan("Free");
     if (onLogout) {
       try {
         await onLogout();
@@ -317,9 +320,22 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
         console.error('Logout failed:', error);
       }
     }
+  }, [onLogout]);
+
+  const handleUpgradeSuccess = async () => {
+    try {
+      await updateUserPlan(true);
+      setCurrentPlan("Pro");
+      setCurrentUser((prev) =>
+        prev ? { ...prev, pro: 1 } : prev
+      );
+    } catch (error) {
+      console.error('Failed to update plan status:', error);
+      alert('We could not update your plan status. Please try again.');
+    }
   };
 
-  const handleCancelStream = () => {
+  const handleCancelStream = useCallback(() => {
     isStreamingCancelled.current = true;
     setIsLoading(false);
     setChats((prev) =>
@@ -331,9 +347,16 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
         return { ...c, messages: msgs };
       })
     );
-  };
+  }, [activeChatId]);
 
-  const handleSend = async (text) => {
+  const currentChat = useMemo(
+    () => chats.find((c) => c.id === activeChatId) || null,
+    [activeChatId, chats]
+  );
+
+  const currentMessages = currentChat?.messages || [];
+
+  const handleSend = useCallback(async (text) => {
     if (!text || !text.trim()) return;
 
     if (loadingChats) {
@@ -521,7 +544,7 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
       );
       setIsLoading(false);
     }
-  };
+  }, [activeChatId, appendMessageToChat, chats, loadingChats, setActiveChatId, setChats, upsertChat]);
 
   return (
     <div
@@ -539,11 +562,7 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
         <UpgradePlan
           darkMode={darkMode}
           onClose={() => { setShowUpgradePlan(false); navigate('/'); }}
-          onUpgradeSuccess={() => {
-            setShowUpgradePlan(false);
-            setCurrentPlan("Pro");
-            navigate('/');
-          }}
+          onUpgradeSuccess={handleUpgradeSuccess}
         />
       ) : (
         <>

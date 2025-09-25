@@ -25,6 +25,7 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
   const [activeProvider, setActiveProvider] = useState('');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetInfo, setResetInfo] = useState({ show: false, email: null, token: null });
+  const [rememberMe, setRememberMe] = useState(false);
 
   const persistRememberedEmail = (nextEmail) => {
     if (typeof window === 'undefined') return;
@@ -46,13 +47,7 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
     const emailParam = params.get('email');
     const tokenParam = params.get('reset_token');
     if (emailParam && tokenParam) {
-
-      // NOTE: This client-side check is temporary. A real implementation
-      // would validate the token against the backend.
-      const users = JSON.parse(localStorage.getItem('chatapp_users')) || [];
-      if (users.some(u => u.email === emailParam)) {
-        setResetInfo({ show: true, email: emailParam, token: tokenParam });
-      }
+      setResetInfo({ show: true, email: emailParam, token: tokenParam });
     }
   }, []);
 
@@ -65,6 +60,7 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
         const parsed = JSON.parse(storedLogin);
         if (parsed?.email) {
           setEmail(parsed.email);
+          setRememberMe(true);
         }
       }
     } catch (storageError) {
@@ -87,6 +83,17 @@ useEffect(() => {
 
   const handleResetComplete = () => {
     window.location.href = "/";
+  };
+
+  const handleRememberToggle = (checked) => {
+    setRememberMe(checked);
+    if (checked) {
+      if (email?.trim()) {
+        persistRememberedEmail(email.trim());
+      }
+    } else {
+      persistRememberedEmail(null);
+    }
   };
 
   const sendWelcomeEmail = (user) => {
@@ -174,7 +181,11 @@ const handleSignup = async (e) => {
       const loggedInUser = response.data?.user;
       const token = response.data?.token; 
       const rememberedEmail = loggedInUser?.email ?? email.trim();
-      persistRememberedEmail(rememberedEmail);
+      if (rememberMe) {
+        persistRememberedEmail(rememberedEmail);
+      } else {
+        persistRememberedEmail(null);
+      }
 
       setSuccess('✅ Login successful! Redirecting...');
       onLogin(loggedInUser || { email: email.trim() });
@@ -219,8 +230,22 @@ const loginWithGoogle = useGoogleLogin({
       const savedUser = response.data.user;
       const token = response.data.token; // <-- backend must return JWT
 
+
       // 3. Save + login
       persistRememberedEmail(savedUser.email);
+
+        const userToLogin = {
+          id: userProfile.sub,
+          email: userProfile.email,
+          name: userProfile.name,
+          provider: 'Google',
+        };
+        if (rememberMe) {
+          persistRememberedEmail(userToLogin.email);
+        } else {
+          persistRememberedEmail(null);
+        }
+
 
       // Save JWT for future requests
       localStorage.setItem("authToken", token);
@@ -251,8 +276,11 @@ const loginWithGoogle = useGoogleLogin({
     setSuccess(`🎉 Successfully authenticated with ${provider}!`);
 
     const socialUser = { id: Date.now(), email: `user@${provider.toLowerCase()}.com`, username: `${provider} User`, provider };
-
-  persistRememberedEmail(socialUser.email);
+    if (rememberMe) {
+      persistRememberedEmail(socialUser.email);
+    } else {
+      persistRememberedEmail(null);
+    }
 
     setTimeout(() => { onLogin(socialUser); }, 800);
 
@@ -286,6 +314,7 @@ const loginWithGoogle = useGoogleLogin({
       <ResetPasswordModal
         darkMode={darkMode}
         email={resetInfo.email}
+        token={resetInfo.token}
         onComplete={handleResetComplete}
       />
     );
@@ -428,9 +457,26 @@ const loginWithGoogle = useGoogleLogin({
                   </div>
 
                   {isLoginView ? (
-                    // CHANGED: Removed the "Remember Me" checkbox.
-                    <div className="d-flex justify-content-end align-items-center mb-3">
-                       <button type="button" className="btn btn-link small text-decoration-none p-0" onClick={() => setShowForgotPassword(true)}>Forgot Password?</button>
+                    <div className="d-flex justify-content-between align-items-center mb-3 gap-2 flex-wrap">
+                      <div className="form-check m-0">
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          id="rememberMe"
+                          checked={rememberMe}
+                          onChange={(e) => handleRememberToggle(e.target.checked)}
+                        />
+                        <label className="form-check-label small" htmlFor="rememberMe">
+                          Remember me
+                        </label>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-link small text-decoration-none p-0"
+                        onClick={() => setShowForgotPassword(true)}
+                      >
+                        Forgot Password?
+                      </button>
                     </div>
                   ) : (
                     <div className="mb-3 form-check"><input type="checkbox" className="form-check-input" id="agreeTerms" checked={agreeTerms} onChange={(e) => setAgreeTerms(e.target.checked)} required /><label className="form-check-label small" htmlFor="agreeTerms">I agree to the <a href="#terms" className="text-decoration-none">Terms & Conditions</a></label></div>

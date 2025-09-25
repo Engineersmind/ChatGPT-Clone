@@ -227,6 +227,7 @@ export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
     setError(''); setSuccess(''); setEmail(''); setUsername(''); setPassword('');
     setAgreeTerms(false); setRememberMe(false); setEmailValid(null); setUsernameValid(null);
   };
+  
 
   const validateEmail = (email) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

@@ -48,7 +48,7 @@ function App() {
       <Route path="/" element={<Navigate to={loggedIn ? "/chat" : "/login"} />} />
 
       <Route
-        path="/login"
+        path="/auth"
         element={
           loggedIn ? (
             <Navigate to="/chat" />
@@ -64,7 +64,7 @@ function App() {
           loggedIn ? (
             <ChatApp user={currentUser} onLogout={handleLogout} />
           ) : (
-            <Navigate to="/login" />
+            <Navigate to="/auth" />
           )
         }
       />

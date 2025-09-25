@@ -19,6 +19,11 @@ const UserSchema = new mongoose.Schema({
     minlength: 6,
     select: false, // <-- IMPORTANT: This hides the password by default
   },
+  pro: {
+    type: Number,
+    enum: [0, 1],
+    default: 0,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

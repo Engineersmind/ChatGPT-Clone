@@ -1,12 +1,41 @@
-# React + Vite
+# QuantumChat – Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the Vite + React frontend for the QuantumChat application. It powers the authentication flows, chat interface, and EmailJS integrations.
 
-Currently, two official plugins are available:
+## Getting started
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+1. Install dependencies
+   ```bash
+   npm install
+   ```
+2. Copy the sample environment file and populate values
+   ```bash
+   cp .env.example .env
+   ```
+3. Run the development server
+   ```bash
+   npm run dev
+   ```
 
-## Expanding the ESLint configuration
+## Required environment variables
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+The forgot-password flow sends EmailJS messages. Configure these environment variables in `.env`:
+
+| Variable | Description |
+| --- | --- |
+| `VITE_EMAILJS_SERVICE_ID` | EmailJS service ID used to send transactional emails. |
+| `VITE_EMAILJS_FORGOT_PASSWORD_TEMPLATE_ID` | Template ID for the **forgot password** email. This must match the template configured in the EmailJS dashboard. |
+| `VITE_EMAILJS_TEMPLATE_ID` | (Optional) Template ID used for welcome emails. |
+| `VITE_EMAILJS_PUBLIC_KEY` | EmailJS public key for the project. |
+
+If any of the required values are missing, the UI surfaces an actionable error instead of calling EmailJS with incomplete credentials.
+
+## Linting
+```bash
+npm run lint
+```
+
+## Build
+```bash
+npm run build
+```

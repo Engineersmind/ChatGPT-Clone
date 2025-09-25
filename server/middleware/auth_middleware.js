@@ -34,6 +34,7 @@ const authenticateUser = async (req, res, next) => {
             email: user.email,
             username: user.username,
             provider: user.provider,
+            pro: typeof user.pro === 'number' ? user.pro : 0,
         };
 
         next();

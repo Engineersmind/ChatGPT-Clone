@@ -18,6 +18,7 @@ const buildUserPayload = (user) => ({
   username: user.username,
   email: user.email,
   provider: user.provider,
+  pro: typeof user.pro === 'number' ? user.pro : 0,
   createdAt: user.createdAt,
 });
 
@@ -109,6 +110,7 @@ exports.loginUser = async (req, res) => {
 };
 
 exports.logoutUser = (req, res) => {
+  console.log('User logged out:', req.user);
 
   res
     .cookie('token', '', {
@@ -139,5 +141,70 @@ exports.getCurrentUser = async (req, res) => {
   } catch (error) {
     console.error('Error fetching current user:', error);
     return res.status(500).json({ message: 'Server error while fetching user.' });
+  }
+};
+
+exports.updateUserPlan = async (req, res) => {
+  const userId = req.user?.id || req.user?._id;
+  const { pro } = req.body || {};
+
+  if (!userId) {
+    return res.status(401).json({ message: 'Not authenticated.' });
+  }
+
+  if (typeof pro === 'undefined') {
+    return res.status(400).json({ message: 'Missing required field: pro.' });
+  }
+
+  const normalizedPro = Number(pro) === 1 ? 1 : 0;
+
+  try {
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { pro: normalizedPro },
+      { new: true, runValidators: true, context: 'query' }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    return res.status(200).json({
+      message: 'Plan updated successfully.',
+      user: buildUserPayload(user),
+    });
+  } catch (error) {
+    console.error('Error updating user plan:', error);
+    return res.status(500).json({ message: 'Server error while updating plan.' });
+  }
+};
+
+exports.resetPasswordWithToken = async (req, res) => {
+  const { email, password } = req.body || {};
+
+  if (!email || !password) {
+    return res.status(400).json({ message: 'Email and new password are required.' });
+  }
+
+  if (typeof password !== 'string' || password.length < 6) {
+    return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
+  }
+
+  try {
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail }).select('+password');
+
+    if (!user) {
+      // Return generic success message to avoid leaking which emails exist.
+      return res.status(200).json({ message: 'If an account exists for that email, the password has been updated.' });
+    }
+
+    user.password = password;
+    await user.save();
+
+    return res.status(200).json({ message: 'Password updated successfully.' });
+  } catch (error) {
+    console.error('Error resetting password:', error);
+    return res.status(500).json({ message: 'Server error while resetting password.' });
   }
 };

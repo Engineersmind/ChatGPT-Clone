@@ -114,9 +114,17 @@ function App() {
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    document.body.className = darkMode ? 'bg-dark text-white' : 'bg-light text-dark';
-  }, [darkMode]);
+    const body = document.body;
+    const darkClasses = ['bg-dark', 'text-white'];
+    const lightClasses = ['bg-light', 'text-dark'];
 
+    body.classList.remove(...darkClasses, ...lightClasses);
+    body.classList.add(...(darkMode ? darkClasses : lightClasses));
+
+    return () => {
+      body.classList.remove(...darkClasses, ...lightClasses);
+    };
+  }, [darkMode]);
 
   const location = useLocation();
   const redirectFrom = location.state?.from;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import ChatApp from './ChatApp';
@@ -13,15 +13,27 @@ import { logoutUser as apiLogoutUser } from './services/authService';
 const CheckoutPage = React.lazy(() => import('./component/CheckoutPage'));
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const USER_KEY = 'chatapp_current_user';
+const THEME_STORAGE_KEY = 'chat_theme';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [loggedIn, setLoggedIn] = useState(false);
   
   const [loading, setLoading] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === 'undefined') return 'system';
+    try {
+      return localStorage.getItem(THEME_STORAGE_KEY) || 'system';
+    } catch (error) {
+      console.warn('Failed to load theme preference:', error);
+      return 'system';
+    }
+  });
+  const [systemPrefersDark, setSystemPrefersDark] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
   const navigate = useNavigate();
-  const token = localStorage.getItem('authToken');
 
 
  useEffect(() => {
@@ -49,12 +61,12 @@ function App() {
 
 
 
-  const handleLogin = (user) => {
+  const handleLogin = useCallback((user) => {
     setCurrentUser(user);
     setLoggedIn(true);
-    
+
     navigate('/');
-  };
+  }, [navigate]);
 
   const handleLogout = async () => {
   try {
@@ -65,18 +77,54 @@ function App() {
 
   setCurrentUser(null);
   setLoggedIn(false);
-  setDarkMode(false);
   localStorage.removeItem('authToken');          // Remove JWT token
   localStorage.removeItem(USER_KEY);              // Remove user info
 };
 
 
-  const toggleDarkMode = () => setDarkMode(!darkMode);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = (event) => setSystemPrefersDark(event.matches);
+
+    setSystemPrefersDark(mediaQuery.matches);
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
 
   useEffect(() => {
-    document.body.className = darkMode ? 'bg-dark text-white' : 'bg-light text-dark';
-  }, [darkMode]);
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch (error) {
+      console.warn('Failed to persist theme preference:', error);
+    }
+  }, [theme]);
 
+  const darkMode = useMemo(() => {
+    if (theme === 'system') {
+      return systemPrefersDark;
+    }
+    return theme === 'dark';
+  }, [theme, systemPrefersDark]);
+
+  const toggleDarkMode = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const body = document.body;
+    const darkClasses = ['bg-dark', 'text-white'];
+    const lightClasses = ['bg-light', 'text-dark'];
+
+    body.classList.remove(...darkClasses, ...lightClasses);
+    body.classList.add(...(darkMode ? darkClasses : lightClasses));
+
+    return () => {
+      body.classList.remove(...darkClasses, ...lightClasses);
+    };
+  }, [darkMode]);
 
   const location = useLocation();
   const redirectFrom = location.state?.from;
@@ -107,19 +155,62 @@ function App() {
         />
         <Route
           path="/"
-          element={<RequireAuth loggedIn={loggedIn}><ChatApp user={currentUser} onLogout={handleLogout} /></RequireAuth>}
+          element={
+            <RequireAuth loggedIn={loggedIn}>
+              <ChatApp
+                user={currentUser}
+                onLogout={handleLogout}
+                theme={theme}
+                onThemeChange={setTheme}
+                darkMode={darkMode}
+              />
+            </RequireAuth>
+          }
         />
         <Route
           path="/settings"
-          element={<RequireAuth loggedIn={loggedIn}><ChatApp user={currentUser} onLogout={handleLogout} initialShowSettings /></RequireAuth>}
+          element={
+            <RequireAuth loggedIn={loggedIn}>
+              <ChatApp
+                user={currentUser}
+                onLogout={handleLogout}
+                theme={theme}
+                onThemeChange={setTheme}
+                darkMode={darkMode}
+                initialShowSettings
+              />
+            </RequireAuth>
+          }
         />
         <Route
           path="/upgrade"
-          element={<RequireAuth loggedIn={loggedIn}><ChatApp user={currentUser} onLogout={handleLogout} initialShowUpgradePlan /></RequireAuth>}
+          element={
+            <RequireAuth loggedIn={loggedIn}>
+              <ChatApp
+                user={currentUser}
+                onLogout={handleLogout}
+                theme={theme}
+                onThemeChange={setTheme}
+                darkMode={darkMode}
+                initialShowUpgradePlan
+              />
+            </RequireAuth>
+          }
         />
         <Route
           path="/help"
-          element={<RequireAuth loggedIn={loggedIn}><ChatApp user={currentUser} onLogout={handleLogout} initialShowHelp /></RequireAuth>}
+          element={
+            <RequireAuth loggedIn={loggedIn}>
+              <ChatApp
+                user={currentUser}
+                onLogout={handleLogout}
+                theme={theme}
+                onThemeChange={setTheme}
+                darkMode={darkMode}
+                initialShowHelp
+              />
+            </RequireAuth>
+          }
         />
         <Route
           path="/checkout"

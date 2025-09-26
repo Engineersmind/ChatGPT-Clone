@@ -77,7 +77,7 @@ useEffect(() => {
   if (storedUser && token) {
     onLogin(JSON.parse(storedUser));
   }
-}, []);
+}, [onLogin]);
 
 
 

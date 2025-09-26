@@ -31,7 +31,6 @@ export default function Sidebar({
   onSelectChat,
   activeChatId,
   onSettings,
-  onShowHelp,
   onRename,
   onArchive,
   onDelete,

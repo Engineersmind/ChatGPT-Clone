@@ -5,7 +5,6 @@ import axios from "axios";
 import SettingsPanel from "./component/SettingsPanel/SettingsPanel";
 import { generateGeminiStreamResponse, isGeminiConfigured } from "./services/geminiService";
 import { 
-  fetchChats,
   createChat as createChatApi,
   appendMessages as appendMessagesApi,
   updateChat as updateChatApi,
@@ -26,7 +25,6 @@ function titleFromText(text) {
 
 const STORAGE_KEY = "chat_history_v1"; // legacy key kept for compatibility with cached state
 const MAX_TITLE_LENGTH = 15; // constraint for chat titles
-const THEME_STORAGE_KEY = "chat_theme"; // new key for theme persistence
 
 function nowTime() {
   return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -77,8 +75,16 @@ const sortChatsByRecency = (chats = []) =>
   });
 
 
-export default function ChatApp({ user, onLogout, initialShowSettings = false, initialShowUpgradePlan = false, initialShowHelp = false }) {
-  const [darkMode, setDarkMode] = useState(false);
+export default function ChatApp({
+  user,
+  onLogout,
+  theme = "system",
+  onThemeChange = () => {},
+  darkMode = false,
+  initialShowSettings = false,
+  initialShowUpgradePlan = false,
+  initialShowHelp = false,
+}) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showSettings, setShowSettings] = useState(initialShowSettings);
   const [showUpgradePlan, setShowUpgradePlan] = useState(initialShowUpgradePlan);
@@ -86,23 +92,7 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
 
   // const [currentPlan, setCurrentPlan] = useState("Free Plan");
 
-  const PLAN_STORAGE_KEY = "current_plan";
-  const THEME_STORAGE_KEY = "chat_theme";
-
-
-  const [theme, setTheme] = useState(() => {
-    try {
-      return localStorage.getItem(THEME_STORAGE_KEY) || "system";
-    } catch {
-      return "system";
-    }
-  });
-
   const [currentPlan, setCurrentPlan] = useState(user?.pro === 1 ? "Pro" : "Free");
-
-  useEffect(() => {
-    localStorage.setItem(THEME_STORAGE_KEY, theme);
-  }, [theme]);
 
   const [chats, setChats] = useState([]);
   const [loadingChats, setLoadingChats] = useState(true);
@@ -136,36 +126,29 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
   }, [initialShowSettings, initialShowUpgradePlan, initialShowHelp]);
 
   useEffect(() => {
-    let isMounted = true;
+    const loadChats = async () => {
+      setLoadingChats(true);
+      setLoadError(null);
+      try {
+        const token = localStorage.getItem("authToken");
+        const response = await axios.get("http://localhost:5000/api/chats", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-   const loadChats = async () => {
-  setLoadingChats(true);
-  setLoadError(null);
-  try {
-    const token = localStorage.getItem("authToken");
-    const response = await axios.get("http://localhost:5000/api/chats", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    const normalizedChats = Array.isArray(response.data)
-      ? response.data.map(normalizeChat)
-      : [];
-    setChats(sortChatsByRecency(normalizedChats));
-  } catch (error) {
-    console.error('Failed to load chats:', error);
-    setLoadError(error.message || 'Failed to load chats.');
-    setChats([]);
-  } finally {
-    setLoadingChats(false);
-  }
-};
-
+        const normalizedChats = Array.isArray(response.data)
+          ? response.data.map(normalizeChat)
+          : [];
+        setChats(sortChatsByRecency(normalizedChats));
+      } catch (error) {
+        console.error('Failed to load chats:', error);
+        setLoadError(error.message || 'Failed to load chats.');
+        setChats([]);
+      } finally {
+        setLoadingChats(false);
+      }
+    };
 
     loadChats();
-
-    return () => {
-      isMounted = false;
-    };
   }, []);
 
   useEffect(() => {
@@ -191,19 +174,6 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
       setActiveChatId(null);
     }
   }, [chats, loadingChats]);
-
-
-  useEffect(() => {
-    const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    let shouldBeDark = theme === "system" ? systemPrefersDark : theme === "dark";
-    if (theme === "light") {
-      shouldBeDark = false;
-    }
-    if (shouldBeDark !== darkMode) {
-      setDarkMode(shouldBeDark);
-    }
-    document.body.className = shouldBeDark ? "bg-dark text-white" : "bg-light text-dark";
-  }, [theme, darkMode]);
 
   // Chat management
   const upsertChat = useCallback((chat) => {
@@ -551,21 +521,21 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
       className={`d-flex ${darkMode ? "bg-dark text-white" : "bg-light text-dark"}`}
       style={{ height: "100vh", overflow: "hidden" }}
     >
-      {showHelp && (
+{showHelp && (
   <HelpModal
     isOpen={showHelp}
-    onClose={closeHelp}
+    onClose={() => { setShowHelp(false); navigate('/'); }}
     darkMode={darkMode}
   />
 )}
-      {showUpgradePlan ? (
-        <UpgradePlan
-          darkMode={darkMode}
-          onClose={() => { setShowUpgradePlan(false); navigate('/'); }}
-          onUpgradeSuccess={handleUpgradeSuccess}
-        />
-      ) : (
-        <>
+{showUpgradePlan ? (
+  <UpgradePlan
+    darkMode={darkMode}
+    onClose={() => { setShowUpgradePlan(false); navigate('/'); }}
+    onUpgradeSuccess={handleUpgradeSuccess}
+  />
+) : (
+  <>
           <Sidebar
             darkMode={darkMode}
             chats={chats}
@@ -596,7 +566,7 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
           )}
           <ChatArea
             darkMode={darkMode}
-            toggleDarkMode={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+            toggleDarkMode={() => onThemeChange((t) => (t === "dark" ? "light" : "dark"))}
             sidebarCollapsed={sidebarCollapsed}
             messages={currentMessages}
             message={input}
@@ -615,7 +585,7 @@ export default function ChatApp({ user, onLogout, initialShowSettings = false, i
             isOpen={showSettings}
             onClose={() => { setShowSettings(false); navigate('/'); }}
             theme={theme}
-            setTheme={(t) => setTheme(t)}
+            setTheme={onThemeChange}
           />
           <HelpModal
             darkMode={darkMode}

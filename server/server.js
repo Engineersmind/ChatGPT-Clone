@@ -34,7 +34,7 @@ app.use(
     },
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'], // <-- add this
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // optional but safe
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], // optional but safe
   })
 );
 

@@ -7,11 +7,12 @@ import RequireAuth from './routes/RequireAuth';
 
 import UpgradePlan from './component/UpgradePlan';
 import { logoutUser as apiLogoutUser } from './services/authService';
+import apiClient from './services/authService';
 
 
 
 const CheckoutPage = React.lazy(() => import('./component/CheckoutPage'));
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 const USER_KEY = 'chatapp_current_user';
 const THEME_STORAGE_KEY = 'chat_theme';
 

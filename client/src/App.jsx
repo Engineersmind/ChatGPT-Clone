@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import axios from 'axios';
 import ChatApp from './ChatApp';
 import AuthForm from './component/AuthForm';
 import RequireAuth from './routes/RequireAuth';
@@ -12,7 +11,6 @@ import apiClient from './services/authService';
 
 
 const CheckoutPage = React.lazy(() => import('./component/CheckoutPage'));
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const USER_KEY = 'chatapp_current_user';
 const THEME_STORAGE_KEY = 'chat_theme';
 
@@ -42,9 +40,7 @@ function App() {
     try {
       const token = localStorage.getItem('authToken');
       if (!token) throw new Error('No auth token found');
-      const { data } = await axios.get(`${API_URL}/api/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const { data } = await apiClient.get('/api/auth/me');
       if (data) {
         setCurrentUser(data);
         setLoggedIn(true);

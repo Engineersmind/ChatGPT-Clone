@@ -8,7 +8,7 @@ import gptIcon from '../assets/gpt-clone-icon.png';
 import SocialLoginModal from './SocialLoginModal';
 import ForgotPasswordModal from './ForgotPasswordModal';
 import ResetPasswordModal from './ResetPasswordModal';
-import { registerUser as apiRegisterUser, loginUser as apiLoginUser } from '../services/authService';
+import apiClient, { registerUser as apiRegisterUser, loginUser as apiLoginUser } from '../services/authService';
 
 export default function AuthForm({ darkMode, toggleDarkMode, onLogin }) {
 
@@ -219,7 +219,7 @@ const loginWithGoogle = useGoogleLogin({
       // console.log("Google user profile:", userProfile);
 
       // 2. Send to backend
-      const response = await axios.post("http://localhost:5000/api/auth/google", {
+      const response = await apiClient.post('api/auth/google', {
         email: userProfile.email,
         name: userProfile.name,
         googleId: userProfile.id,

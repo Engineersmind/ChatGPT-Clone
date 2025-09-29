@@ -362,7 +362,8 @@ export default function ChatArea({
           {/* Messages List */}
           <div
             ref={scrollContainerRef}
-            className="flex-grow-1 overflow-auto p-4"
+            className="flex-grow-1 overflow-auto py-4 px-5"
+            
             style={{ backgroundColor: darkMode ? "#2a2a2a" : "#fff" }}
           >
             {messages.map((msg, i) => {

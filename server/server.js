@@ -33,8 +33,8 @@ app.use(
       return callback(new Error('Origin not allowed by CORS'));
     },
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization'], // <-- add this
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // optional but safe
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   })
 );
 

@@ -7,6 +7,7 @@ import RequireAuth from './routes/RequireAuth';
 
 import UpgradePlan from './component/UpgradePlan';
 import { logoutUser as apiLogoutUser } from './services/authService';
+import apiClient from './services/authService';
 
 
 

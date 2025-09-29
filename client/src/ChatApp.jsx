@@ -131,7 +131,7 @@ export default function ChatApp({
       setLoadError(null);
       try {
         const token = localStorage.getItem("authToken");
-        const response = await axios.get("http://localhost:5000/api/chats", {
+        const response = await apiClient.get("/api/chats", {
           headers: { Authorization: `Bearer ${token}` },
         });
 

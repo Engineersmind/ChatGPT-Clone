@@ -14,6 +14,7 @@ import UpgradePlan from "./component/UpgradePlan";
 import HelpModal from "./component/Help";
 import { useNavigate } from 'react-router-dom';
 import { updateUserPlan } from "./services/authService";
+import apiClient from "./services/authService";
 
 function titleFromText(text) {
   if (!text) return "Chat";

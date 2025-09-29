@@ -20,6 +20,11 @@ export default function ResetPasswordModal({ darkMode, email, token, onComplete 
     setError('');
     setSuccess('');
  
+    if (!email || !token) {
+      setError('Password reset link is invalid or has expired.');
+      return;
+    }
+
     if (password.length < 6) {
       setError('Password must be at least 6 characters long.');
       return;
@@ -32,7 +37,7 @@ export default function ResetPasswordModal({ darkMode, email, token, onComplete 
     setIsLoading(true);
 
     try {
-      await apiResetPassword({ email, password, token });
+      await apiResetPassword({ email: email.trim(), password, token });
       setSuccess('Password has been reset successfully! You will be redirected to the login page shortly.');
       setTimeout(() => {
         onComplete();

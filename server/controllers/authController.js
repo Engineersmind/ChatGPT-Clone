@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const crypto = require('node:crypto');
+const https = require('https');
 
 
 
@@ -11,6 +12,88 @@ if (!process.env.JWT_SECRET) {
 
 
 const TOKEN_EXPIRY_DAYS = 30;
+const PASSWORD_RESET_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
+
+const getClientBaseUrl = () => {
+  const {
+    PASSWORD_RESET_URL,
+    CLIENT_RESET_URL,
+    CLIENT_APP_URL,
+    CLIENT_ORIGIN,
+    CLIENT_ORIGINS,
+  } = process.env;
+
+  const firstConfiguredOrigin = CLIENT_ORIGINS?.split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)?.[0];
+
+  return (
+    PASSWORD_RESET_URL ||
+    CLIENT_RESET_URL ||
+    CLIENT_APP_URL ||
+    CLIENT_ORIGIN ||
+    firstConfiguredOrigin ||
+    'http://localhost:5173'
+  ).replace(/\/$/, '');
+};
+
+const sendPasswordResetEmail = async ({ user, resetLink }) => {
+  const serviceId = process.env.VITE_EMAILJS_SERVICE_ID;
+  const templateId = process.env.VITE_EMAILJS_FORGOT_PASSWORD_TEMPLATE_ID;
+  const publicKey = process.env.VITE_EMAILJS_PUBLIC_KEY;
+
+  if (!serviceId || !templateId || !publicKey) {
+    throw new Error('EmailJS configuration is missing');
+  }
+
+  const emailData = JSON.stringify({
+    service_id: serviceId,
+    template_id: templateId,
+    user_id: publicKey,
+    template_params: {
+      username: user.username || user.email.split('@')[0],
+      to_email: user.email,
+      reset_link: resetLink,
+    },
+  });
+
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'api.emailjs.com',
+      port: 443,
+      path: '/api/v1.0/email/send',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(emailData),
+        'User-Agent': 'Node.js EmailJS Client',
+        'Origin': 'https://quantumchat.com', // Fake a browser origin
+        'Referer': 'https://quantumchat.com/',
+      },
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+      res.on('end', () => {
+        if (res.statusCode === 200) {
+          resolve(data);
+        } else {
+          reject(new Error(`EmailJS request failed: ${res.statusCode} ${data}`));
+        }
+      });
+    });
+
+    req.on('error', (error) => {
+      reject(error);
+    });
+
+    req.write(emailData);
+    req.end();
+  });
+};
 
 const generateToken = (userId) =>
   jwt.sign({ id: userId }, process.env.JWT_SECRET, {
@@ -220,12 +303,54 @@ exports.updateUserPlan = async (req, res) => {
 
 // const bcrypt = require('bcryptjs');
 
-exports.resetPasswordWithToken = async (req, res) => {
-  const { email, password } = req.body || {};
-  console.log("Reset Password Request:", req.body);
+exports.requestPasswordReset = async (req, res) => {
+  const { email } = req.body || {};
 
-  if (!email || !password) {
-    return res.status(400).json({ message: 'Email and new password are required.' });
+  if (!email) {
+    return res.status(400).json({ message: 'Email is required.' });
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  try {
+    const user = await User.findOne({ email: normalizedEmail });
+
+    if (!user) {
+      return res.status(200).json({ message: 'If an account exists for that email, a password reset link has been sent.' });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+    user.resetPasswordToken = hashedToken;
+    user.resetPasswordExpires = Date.now() + PASSWORD_RESET_EXPIRY_MS;
+
+    await user.save({ validateBeforeSave: false });
+
+    const resetUrlBase = getClientBaseUrl();
+    const resetLink = `${resetUrlBase}/login?reset_token=${resetToken}&email=${encodeURIComponent(user.email)}`;
+
+    try {
+      await sendPasswordResetEmail({ user, resetLink });
+      return res.status(200).json({ message: 'If an account exists for that email, a password reset link has been sent.' });
+    } catch (mailError) {
+      user.resetPasswordToken = undefined;
+      user.resetPasswordExpires = undefined;
+      await user.save({ validateBeforeSave: false });
+      console.error('Error sending password reset email:', mailError);
+      return res.status(500).json({ message: 'Failed to send reset email. Please try again later.' });
+    }
+  } catch (error) {
+    console.error('Error handling password reset request:', error);
+    return res.status(500).json({ message: 'Server error while processing password reset request.' });
+  }
+};
+
+exports.resetPasswordWithToken = async (req, res) => {
+  const { email, password, token } = req.body || {};
+
+  if (!email || !password || !token) {
+    return res.status(400).json({ message: 'Email, token, and new password are required.' });
   }
 
   if (typeof password !== 'string' || password.length < 6) {
@@ -234,21 +359,27 @@ exports.resetPasswordWithToken = async (req, res) => {
 
   try {
     const normalizedEmail = email.trim().toLowerCase();
-    const user = await User.findOne({ email: normalizedEmail }).select('+password');
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    const user = await User.findOne({
+      email: normalizedEmail,
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: Date.now() },
+    }).select('+password');
 
     if (!user) {
-      return res.status(200).json({ message: 'If an account exists for that email, the password has been updated.' });
+      return res.status(400).json({ message: 'Password reset link is invalid or has expired.' });
     }
 
-    // Change provider first if needed
-    if (user.provider !== "local") {
-      user.provider = "local";
-    }
-
-    // Set new password **as plain text**, pre-save hook will hash it automatically
     user.password = password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
 
-    await user.save(); // Mongoose pre-save will hash password
+    if (user.provider !== 'local') {
+      user.provider = 'local';
+    }
+
+    await user.save();
 
     return res.status(200).json({ message: 'Password updated successfully.' });
   } catch (error) {

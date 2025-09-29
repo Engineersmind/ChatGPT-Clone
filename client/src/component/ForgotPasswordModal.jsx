@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion as Motion } from 'framer-motion';
-import emailjs from '@emailjs/browser';
 import { X as CloseIcon, Mail } from 'lucide-react';
+import { requestPasswordReset } from '../services/authService';
 
 export default function ForgotPasswordModal({ darkMode, onClose }) {
   const [email, setEmail] = useState('');
@@ -9,77 +9,27 @@ export default function ForgotPasswordModal({ darkMode, onClose }) {
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
  
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
- 
+
     if (!email) {
       setError('Please enter your email address.');
       return;
     }
+
     setIsLoading(true);
- 
-    const users = JSON.parse(localStorage.getItem('chatapp_users')) || [];
-    const foundUser = users.find(user => user.email === email);
-    console.log('Searching for user with email:', email);
-    console.log('Users in storage:', users);
- 
-    if (foundUser) {
-      console.log('Found user for password reset:', foundUser);
-      
-      // 1. Generate a unique and secure
-      //  token for the reset link.
-      const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-      
-      // 2. Store the token with the user's email and an expiration time (e.g., 1 hour).
-      const resetStore = JSON.parse(localStorage.getItem('chatapp_password_resets') || '{}');
-      const expiry = Date.now() + 3600000; // 1 hour from now
-      resetStore[token] = { email: foundUser.email, expiry };
-      localStorage.setItem('chatapp_password_resets', JSON.stringify(resetStore));
-      
-      // 3. Construct the full reset URL that will be sent in the email.
-      const resetLink = `${window.location.origin}/login?reset_token=${token}&email=${encodeURIComponent(foundUser.email)}`;
-      
-      // 4. Prepare the parameters for the EmailJS template.
-      const templateParams = {
-        username: foundUser.username || foundUser.email.split('@')[0],
-        to_email: foundUser.email,
-        reset_link: resetLink // This variable MUST match the one in your EmailJS template (e.g., {{reset_link}})
-      };
- 
-      const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-      // IMPORTANT: Ensure this is your FORGOT PASSWORD template ID, not the welcome email one.
-      const templateId = import.meta.env.VITE_EMAILJS_FORGOT_PASSWORD_TEMPLATE_ID; 
-      const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
-      if (!serviceId || !templateId || !publicKey) {
-        console.error('EmailJS configuration missing. Check VITE_EMAILJS_SERVICE_ID, VITE_EMAILJS_FORGOT_PASSWORD_TEMPLATE_ID, and VITE_EMAILJS_PUBLIC_KEY.');
-        setError('Password reset email service is not configured. Please contact support.');
-        setIsLoading(false);
-        return;
-      }
-
-      // 5. Send the email using EmailJS.
-      emailjs.send(serviceId, templateId, templateParams, publicKey)
-        .then(() => {
-          // Show success message and reset state
-          setSuccess('If an account with that email exists, a password reset link has been sent.');
-          setIsLoading(false);
-        })
-        .catch((err) => {
-          console.error('EmailJS Error:', err);
-          // Still show a generic success message to the user for security.
-          setSuccess('If an account with that email exists, a password reset link has been sent.');
-          setIsLoading(false);
-        });
-    } else {
-      // If the user is not found, we don't reveal that information.
-      // We wait for a moment and show the same success message for security reasons (prevents user enumeration).
-      setTimeout(() => {
-        setSuccess('If an account with that email exists, a password reset link has been sent.');
-        setIsLoading(false);
-      }, 1500);
+    try {
+      await requestPasswordReset({ email: email.trim() });
+      setSuccess('If an account with that email exists, a password reset link has been sent.');
+    } catch (err) {
+      console.error('Password reset request failed:', err);
+      const message = err?.response?.data?.message || 'Unable to send password reset email right now. Please try again later.';
+      setError(message);
+    } finally {
+      setIsLoading(false);
     }
   };
  

@@ -76,7 +76,12 @@ export default function ResetPasswordModal({ darkMode, email, token, onComplete 
               <div className="position-relative mb-3">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  className={`form-control ${darkMode ? 'bg-dark-subtle text-white border-secondary' : ''}`}
+                  className={`form-control ${darkMode ? 'text-white border-secondary' : ''}`}
+                  style={darkMode ? { 
+                    backgroundColor: '#2a2a2a', 
+                    color: '#ffffff',
+                    borderColor: '#6c757d'
+                  } : {}}
                   placeholder="Enter new password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -89,7 +94,12 @@ export default function ResetPasswordModal({ darkMode, email, token, onComplete 
                <div className="position-relative mb-3">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  className={`form-control ${darkMode ? 'bg-dark-subtle text-white border-secondary' : ''}`}
+                  className={`form-control ${darkMode ? 'text-white border-secondary' : ''}`}
+                  style={darkMode ? { 
+                    backgroundColor: '#2a2a2a', 
+                    color: '#ffffff',
+                    borderColor: '#6c757d'
+                  } : {}}
                   placeholder="Confirm new password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}

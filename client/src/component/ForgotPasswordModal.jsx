@@ -50,7 +50,7 @@ export default function ForgotPasswordModal({ darkMode, onClose }) {
         <div className="p-5 text-center">
           <Mail size={48} className="mb-3 text-primary" />
           <h4 className="fw-bold">Forgot Password?</h4>
-          <p className="text-muted small mb-4">
+          <p className={`small mb-4 ${darkMode ? 'text-light' : 'text-muted'}`}>
             No worries! Enter your email and we'll send you a link to reset your password.
           </p>
  
@@ -62,7 +62,12 @@ export default function ForgotPasswordModal({ darkMode, onClose }) {
               <div className="mb-3">
                 <input
                   type="email"
-                  className={`form-control ${darkMode ? 'bg-dark-subtle text-white border-secondary' : ''}`}
+                  className={`form-control ${darkMode ? 'text-white border-secondary' : ''}`}
+                  style={darkMode ? { 
+                    backgroundColor: '#2a2a2a', 
+                    color: '#ffffff',
+                    borderColor: '#6c757d'
+                  } : {}}
                   placeholder="Enter your registered email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -81,7 +86,7 @@ export default function ForgotPasswordModal({ darkMode, onClose }) {
             </form>
           )}
  
-          <button onClick={onClose} className="btn btn-link btn-sm mt-3 text-muted">
+          <button onClick={onClose} className={`btn btn-link btn-sm mt-3 ${darkMode ? 'text-light' : 'text-muted'}`}>
              Back to Login
           </button>
         </div>

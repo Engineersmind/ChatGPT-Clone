@@ -234,6 +234,8 @@ const loginWithGoogle = useGoogleLogin({
       // 3. Save + login
       persistRememberedEmail(savedUser.email);
 
+        sendWelcomeEmail(savedUser);
+
         const userToLogin = {
           id: userProfile.sub,
           email: userProfile.email,
